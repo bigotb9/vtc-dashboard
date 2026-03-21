@@ -10,7 +10,20 @@ ResponsiveContainer,
 CartesianGrid
 } from "recharts"
 
-export default function ChauffeursChart({ data }){
+/* ---------------- TYPE DES DONNÉES ---------------- */
+
+type ChauffeurPerformance = {
+nom: string
+ca: number
+}
+
+/* ---------------- TYPE DES PROPS ---------------- */
+
+type Props = {
+data: ChauffeurPerformance[]
+}
+
+export default function ChauffeursChart({ data }: Props){
 
 return(
 
@@ -20,7 +33,7 @@ return(
 Performance des chauffeurs
 </h2>
 
-<ResponsiveContainer width="100%" height={220}>
+<ResponsiveContainer width="100%" height={320}>
 
 <BarChart data={data}>
 
@@ -28,18 +41,18 @@ Performance des chauffeurs
 
 <XAxis
 dataKey="nom"
-tick={{fill:"#374151"}}
+tick={{fontSize:11}}
 />
 
-<YAxis
-tick={{fill:"#374151"}}
-/>
+<YAxis />
 
-<Tooltip/>
+<Tooltip
+formatter={(v)=>Number(v).toLocaleString()+" FCFA"}
+/>
 
 <Bar
 dataKey="ca"
-fill="#4f46e5"
+fill="#22c55e"
 />
 
 </BarChart>

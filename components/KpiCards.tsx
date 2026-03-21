@@ -136,11 +136,10 @@ export default function KpiCards() {
 
   return (
 
-    <div className="space-y-6 mb-10">
+    <div className="space-y-6">
 
-      {/* Ligne finance */}
-
-      <div className="grid grid-cols-3 gap-6">
+      {/* FINANCE */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 
         {financeCards.map((card) => {
 
@@ -150,25 +149,23 @@ export default function KpiCards() {
 
             <div
               key={card.title}
-              className="bg-white p-6 rounded-2xl shadow-sm border"
+              className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all"
             >
 
-              <div className="flex justify-between">
+              <div className="flex items-center justify-between">
 
                 <div>
-
-                  <p className="text-gray-500 text-sm">
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
                     {card.title}
                   </p>
 
-                  <h2 className="text-2xl font-bold text-gray-900 mt-1">
+                  <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mt-1">
                     {Number(card.value).toLocaleString()} FCFA
                   </h2>
-
                 </div>
 
-                <div className={`${card.color} p-3 rounded-xl`}>
-                  <Icon size={20} className="text-white"/>
+                <div className={`${card.color} p-3 rounded-xl shadow-sm`}>
+                  <Icon size={18} className="text-white"/>
                 </div>
 
               </div>
@@ -181,9 +178,8 @@ export default function KpiCards() {
 
       </div>
 
-      {/* Ligne opération */}
-
-      <div className="grid grid-cols-4 gap-6">
+      {/* OPERATIONS */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
 
         {operationsCards.map((card) => {
 
@@ -193,18 +189,17 @@ export default function KpiCards() {
 
             <div
               key={card.title}
-              className="bg-white p-6 rounded-2xl shadow-sm border"
+              className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all"
             >
 
-              <div className="flex justify-between">
+              <div className="flex items-center justify-between">
 
                 <div>
-
-                  <p className="text-gray-500 text-sm">
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
                     {card.title}
                   </p>
 
-                  <h2 className="text-2xl font-bold text-gray-900 mt-1">
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white mt-1">
 
                     {card.currency === false
                       ? Number(card.value).toLocaleString()
@@ -212,11 +207,10 @@ export default function KpiCards() {
                     }
 
                   </h2>
-
                 </div>
 
-                <div className={`${card.color} p-3 rounded-xl`}>
-                  <Icon size={20} className="text-white"/>
+                <div className={`${card.color} p-2.5 rounded-lg shadow-sm`}>
+                  <Icon size={16} className="text-white"/>
                 </div>
 
               </div>

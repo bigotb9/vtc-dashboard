@@ -2,118 +2,109 @@
 
 import Link from "next/link"
 
-export default function ChauffeursTable({ chauffeurs, classement }){
+/* ---------------- TYPES ---------------- */
 
-const getCA = (nom:string)=>{
-
-const chauffeur = classement?.find((c:any)=> c.nom === nom)
-
-return chauffeur?.ca || 0
-
+type Chauffeur = {
+  id_chauffeur: number
+  nom: string
+  numero_wave?: string
+  actif: boolean
 }
 
-return(
+type Classement = {
+  nom: string
+  ca: number
+}
 
-<div className="bg-white rounded-xl shadow p-6">
+/* ---------------- PROPS ---------------- */
 
-<h2 className="text-xl font-semibold text-gray-900 mb-4">
-Liste des chauffeurs
-</h2>
+type Props = {
+  chauffeurs: Chauffeur[]
+  classement: Classement[]
+}
 
-<div className="max-h-[500px] overflow-y-auto">
+export default function ChauffeursTable({ chauffeurs, classement }: Props) {
 
-<table className="w-full text-sm">
+  /* récupérer le CA d'un chauffeur */
 
-<thead className="border-b text-gray-700">
+  const getCA = (nom: string) => {
+    const chauffeur = classement?.find((c) => c.nom === nom)
+    return chauffeur?.ca || 0
+  }
 
-<tr>
+  return (
+    <div className="bg-white p-6 rounded-xl shadow">
 
-<th className="text-left py-3">Chauffeur</th>
-<th className="text-center">Téléphone</th>
-<th className="text-center">Véhicule</th>
-<th className="text-center">CA mensuel</th>
-<th className="text-center">Statut</th>
-<th className="text-center">Commentaire</th>
-<th className="text-center">Action</th>
+      <h2 className="text-lg font-semibold mb-4">
+        Liste des chauffeurs
+      </h2>
 
-</tr>
+      <div className="max-h-[500px] overflow-y-auto">
 
-</thead>
+        <table className="w-full text-sm">
 
-<tbody>
+          <thead className="border-b text-gray-700">
+            <tr>
+              <th className="text-left py-2">Chauffeur</th>
+              <th className="text-center">Téléphone</th>
+              <th className="text-center">CA mensuel</th>
+              <th className="text-center">Statut</th>
+              <th className="text-center">Action</th>
+            </tr>
+          </thead>
 
-{chauffeurs.map((c:any)=>{
+          <tbody>
 
-const ca = getCA(c.nom)
+            {chauffeurs.map((c) => {
 
-return(
+              const ca = getCA(c.nom)
 
-<tr
-key={c.id_chauffeur}
-className="border-b hover:bg-gray-50"
->
+              return (
+                <tr key={c.id_chauffeur} className="border-b">
 
-<td className="py-3 font-medium text-gray-900">
-{c.nom}
-</td>
+                  <td className="py-2">
+                    {c.nom}
+                  </td>
 
-<td className="text-center text-gray-800">
-{c.numero_wave || "-"}
-</td>
+                  <td className="text-center">
+                    {c.numero_wave || "-"}
+                  </td>
 
-<td className="text-center text-gray-800">
-{c.immatriculation || "-"}
-</td>
+                  <td className="text-center font-semibold text-blue-600">
+                    {ca.toLocaleString()} FCFA
+                  </td>
 
-<td className="text-center text-blue-600 font-semibold">
-{ca.toLocaleString()} FCFA
-</td>
+                  <td className="text-center">
+                    <span
+                      className={`px-2 py-1 rounded text-xs ${
+                        c.actif
+                          ? "bg-green-100 text-green-700"
+                          : "bg-red-100 text-red-700"
+                      }`}
+                    >
+                      {c.actif ? "Actif" : "Inactif"}
+                    </span>
+                  </td>
 
-<td className="text-center">
+                  <td className="text-center">
+                    <Link
+                      href={`/chauffeurs/${c.id_chauffeur}`}
+                      className="text-blue-600 hover:underline"
+                    >
+                      Voir
+                    </Link>
+                  </td>
 
-<span className={`px-3 py-1 rounded-full text-xs font-semibold
-${c.actif
-? "bg-green-100 text-green-700"
-: "bg-gray-200 text-gray-700"}
-`}>
+                </tr>
+              )
+            })}
 
-{c.actif ? "ACTIF" : "INACTIF"}
+          </tbody>
 
-</span>
+        </table>
 
-</td>
+      </div>
 
-<td className="text-center text-gray-700">
-{c.commentaire || "-"}
-</td>
-
-<td className="text-center">
-
-<Link
-href={`/chauffeurs/${c.id_chauffeur}`}
-className="text-blue-600 hover:underline"
->
-
-Voir
-
-</Link>
-
-</td>
-
-</tr>
-
-)
-
-})}
-
-</tbody>
-
-</table>
-
-</div>
-
-</div>
-
-)
-
+    </div>
+  )
 }

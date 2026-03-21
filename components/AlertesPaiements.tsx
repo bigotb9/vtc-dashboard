@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabaseClient"
 import { CheckCircle, AlertTriangle } from "lucide-react"
 
-export default function AlertesPaiements() {
+export default function AlertesPaiements({ data }: any) {
 
   const [stats,setStats] = useState({
     payes:0,

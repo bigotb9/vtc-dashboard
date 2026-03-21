@@ -10,7 +10,20 @@ ResponsiveContainer,
 CartesianGrid
 } from "recharts"
 
-export default function TopChauffeurChart({ data }){
+/* TYPE DES DONNÉES */
+
+type Versement = {
+date_recette: string
+montant: number
+}
+
+/* TYPE DES PROPS */
+
+type Props = {
+data: Versement[]
+}
+
+export default function TopChauffeurChart({ data }: Props){
 
 return(
 
@@ -33,14 +46,14 @@ tick={{fill:"#374151",fontSize:11}}
 
 <YAxis hide/>
 
-<Tooltip/>
+<Tooltip
+formatter={(v)=>Number(v).toLocaleString()+" FCFA"}
+/>
 
 <Line
-type="monotone"
-dataKey="ca_jour"
-stroke="#16a34a"
+dataKey="montant"
+stroke="#22c55e"
 strokeWidth={2}
-dot={false}
 />
 
 </LineChart>

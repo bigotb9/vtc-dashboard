@@ -11,7 +11,7 @@ import {
   ResponsiveContainer
 } from "recharts"
 
-export default function PaiementVehiculesChart(){
+export default function PaiementVehiculesChart({ data: externalData }: any) {
 
   const [data,setData] = useState([
     { name:"Payés", value:0, color:"#22c55e" },
@@ -54,7 +54,6 @@ export default function PaiementVehiculesChart(){
   }
 
   return(
-
     <div className="bg-white p-6 rounded-xl shadow h-[350px]">
 
       <h2 className="text-lg font-semibold text-gray-900 mb-4">
@@ -62,7 +61,6 @@ export default function PaiementVehiculesChart(){
       </h2>
 
       <ResponsiveContainer width="100%" height={260}>
-
         <PieChart>
 
           <Pie
@@ -80,22 +78,17 @@ export default function PaiementVehiculesChart(){
 
           </Pie>
 
-          <Tooltip formatter={(v)=>`${v} véhicule(s)`}/>
+          <Tooltip formatter={(v)=>`${v} véhicule(s)`} />
 
           <Legend
             verticalAlign="bottom"
             height={40}
-            wrapperStyle={{
-              paddingTop:"10px"
-            }}
+            wrapperStyle={{ paddingTop:"10px" }}
           />
 
         </PieChart>
-
       </ResponsiveContainer>
 
     </div>
-
   )
-
 }

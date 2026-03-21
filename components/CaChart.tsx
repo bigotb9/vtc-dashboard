@@ -23,8 +23,8 @@ export default function CaChart() {
 
     const { data } = await supabase
       .from("vue_ca_journalier")
-      .select("date, chiffre_affaire")
-      .order("date", { ascending: true })
+      .select("date_recette, chiffre_affaire")
+      .order("date_recette", { ascending: true })
 
     setData(data || [])
   }
@@ -41,7 +41,7 @@ export default function CaChart() {
 
         <LineChart data={data}>
 
-          <XAxis dataKey="date" />
+          <XAxis dataKey="date_recette" />
 
           <YAxis />
 

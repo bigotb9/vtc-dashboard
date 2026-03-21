@@ -1,42 +1,55 @@
+import { supabase } from "@/lib/supabaseClient"
+
 import SearchBar from "@/components/SearchBar"
 import KpiCards from "@/components/KpiCards"
-import CaChart from "@/components/CaChart"
-import DepensesChart from "@/components/DepensesChart"
-import TopChauffeurs from "@/components/TopChauffeurs"
-import PaiementsVehicules from "@/components/PaiementVehiculesChart"
+import RecettesTable from "@/components/RecettesTable"
+
+import DepensesCategorieChart from "@/components/DepensesCategorieChart"
+import PaiementVehiculesChart from "@/components/PaiementVehiculesChart"
 import AlertesPaiements from "@/components/AlertesPaiements"
 
-export default function Dashboard() {
+export default async function DashboardPage() {
+
+  const { data: recettes } = await supabase
+    .from("vue_recettes_vehicules")
+    .select("*")
+    .order("Horodatage", { ascending: false })
+    .limit(10)
+
+  const { data: depenses } = await supabase
+    .from("vue_depenses_categories")
+    .select("*")
+
+  const { data: profits } = await supabase
+    .from("vue_profit_journalier")
+    .select("*")
+
+  const { data: paiementVehicules } = await supabase
+    .from("vue_voitures_payees")
+    .select("*")
 
   return (
 
-    <div>
+      <div className="min-h-screen p-6 space-y-6">
 
+
+      {/* SEARCH */}
       <SearchBar />
 
+      {/* KPI */}
       <KpiCards />
 
-      {/* Ligne graphique + paiements + alertes */}
+      {/* TABLE */}
+      <RecettesTable recettes={recettes || []} />
 
-      <div className="grid grid-cols-4 gap-6 mb-8">
+      {/* ANALYTICS */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-        <div className="col-span-2">
-          <CaChart />
-        </div>
+        <DepensesCategorieChart data={depenses || []} />
 
-        <PaiementsVehicules />
+        <PaiementVehiculesChart data={paiementVehicules || []} />
 
-        <AlertesPaiements />
-
-      </div>
-
-      {/* Ligne suivante */}
-
-      <div className="grid grid-cols-2 gap-6">
-
-        <DepensesChart />
-
-        <TopChauffeurs />
+        <AlertesPaiements data={paiementVehicules || []} />
 
       </div>
 

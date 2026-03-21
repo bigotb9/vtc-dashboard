@@ -10,7 +10,7 @@ ResponsiveContainer,
 CartesianGrid
 } from "recharts"
 
-export default function RecettesChart({ data }){
+export default function RecettesChart({ data }: { data:any[] }){
 
 return(
 
@@ -20,25 +20,25 @@ return(
 Evolution des recettes
 </h2>
 
-<ResponsiveContainer width="100%" height={250}>
+<ResponsiveContainer width="100%" height={300}>
 
 <LineChart data={data}>
 
 <CartesianGrid strokeDasharray="3 3"/>
 
-<XAxis dataKey="date_recette"/>
+<XAxis dataKey="date"/>
 
 <YAxis/>
 
 <Tooltip
-formatter={(v)=> v.toLocaleString()+" FCFA"}
+formatter={(v)=>Number(v).toLocaleString()+" FCFA"}
 />
 
 <Line
 type="monotone"
 dataKey="montant"
-stroke="#16a34a"
-strokeWidth={2}
+stroke="#3b82f6"
+strokeWidth={3}
 />
 
 </LineChart>

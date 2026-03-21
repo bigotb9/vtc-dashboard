@@ -58,7 +58,7 @@ fill={COLORS[index % COLORS.length]}
 </Pie>
 
 <Tooltip
-formatter={(v:number)=> v.toLocaleString()+" FCFA"}
+formatter={(v)=> Number(v).toLocaleString()+" FCFA"}
 />
 
 <Legend />

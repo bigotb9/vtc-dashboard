@@ -2,6 +2,7 @@ import { supabase } from "@/lib/supabaseClient"
 import ChauffeursTable from "@/components/ChauffeursTable"
 import ChauffeursChart from "@/components/ChauffeursChart"
 import TopChauffeurChart from "@/components/TopChauffeurChart"
+import Link from "next/link"
 
 export default async function ChauffeursPage(){
 
@@ -17,7 +18,6 @@ chauffeurs?.filter((c:any)=> c.actif === true).length || 0
 const chauffeursInactifs =
 chauffeurs?.filter((c:any)=> c.actif === false).length || 0
 
-
 /* CLASSEMENT */
 
 const { data: classement } = await supabase
@@ -25,9 +25,7 @@ const { data: classement } = await supabase
 .select("*")
 .order("ca",{ascending:false})
 
-
 const topChauffeur = classement?.[0]
-
 
 /* VERSEMENTS TOP CHAUFFEUR */
 
@@ -44,10 +42,26 @@ versementsTop = data || []
 
 }
 
-
 return(
 
 <div className="space-y-6">
+
+{/* HEADER + BOUTON */}
+
+<div className="flex justify-between items-center">
+  <div>
+    <h1 className="text-2xl font-bold">Chauffeurs</h1>
+    <p className="text-gray-500 text-sm">
+      Gestion des chauffeurs
+    </p>
+  </div>
+
+  <Link href="/chauffeurs/create">
+    <button className="bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded-lg shadow">
+      + Ajouter un chauffeur
+    </button>
+  </Link>
+</div>
 
 {/* KPI */}
 
@@ -65,7 +79,6 @@ Total chauffeurs
 
 </div>
 
-
 <div className="bg-white p-6 rounded-xl shadow border border-gray-100">
 
 <p className="text-sm font-medium text-gray-600">
@@ -77,7 +90,6 @@ Chauffeurs actifs
 </p>
 
 </div>
-
 
 <div className="bg-white p-6 rounded-xl shadow border border-gray-100">
 
@@ -93,7 +105,6 @@ Chauffeurs inactifs
 
 </div>
 
-
 {/* GRAPH + TOP CHAUFFEUR */}
 
 <div className="grid grid-cols-3 gap-6">
@@ -107,7 +118,6 @@ Performance chauffeurs
 <ChauffeursChart data={classement || []}/>
 
 </div>
-
 
 <div className="bg-white p-5 rounded-xl shadow">
 
@@ -136,7 +146,6 @@ Performance chauffeurs
 </div>
 
 </div>
-
 
 {/* TABLE */}
 

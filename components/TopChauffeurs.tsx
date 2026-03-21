@@ -19,18 +19,20 @@ date_recette: string
 montant: number
 }
 
-export default function TopChauffeurs({
-classement,
-versements
-}:{
-classement: Chauffeur[]
-versements: Versement[]
-}){
+type Props = {
+classement?: Chauffeur[]
+versements?: Versement[]
+}
 
-/* ---------------- TOP CHAUFFEUR ---------------- */
+export default function TopChauffeurs({
+classement = [],
+versements = []
+}: Props){
+
+/* sécurisation */
 
 const topChauffeur =
-classement && classement.length > 0
+classement.length > 0
 ? classement[0]
 : null
 
@@ -38,7 +40,7 @@ return(
 
 <div className="bg-white p-6 rounded-xl shadow">
 
-<h2 className="text-lg font-semibold text-gray-800 mb-4">
+<h2 className="text-lg font-semibold mb-4">
 🏆 Top chauffeur
 </h2>
 
@@ -48,33 +50,19 @@ return(
 
 <div>
 
-<p className="text-gray-600 text-sm">
-Nom
-</p>
-
 <p className="text-xl font-bold">
 {topChauffeur.nom}
 </p>
 
-</div>
-
-
-<div>
-
-<p className="text-gray-600 text-sm">
-Chiffre d'affaires
-</p>
-
-<p className="text-2xl font-bold text-green-600">
+<p className="text-green-600 text-2xl font-bold">
 {topChauffeur.ca.toLocaleString()} FCFA
 </p>
 
 </div>
 
-
 <div>
 
-<p className="text-gray-600 text-sm mb-2">
+<p className="text-sm text-gray-500 mb-2">
 Versements journaliers
 </p>
 
@@ -87,11 +75,10 @@ Versements journaliers
 <YAxis hide />
 
 <Tooltip
-formatter={(v:number)=> v.toLocaleString()+" FCFA"}
+formatter={(v)=>Number(v).toLocaleString()+" FCFA"}
 />
 
 <Line
-type="monotone"
 dataKey="montant"
 stroke="#22c55e"
 strokeWidth={2}
@@ -108,7 +95,7 @@ strokeWidth={2}
 ) : (
 
 <p className="text-gray-500">
-Aucune donnée disponible
+Aucun chauffeur disponible
 </p>
 
 )}

@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabaseClient"
 import DepensesTable from "../../components/DepensesTable"
 import DepensesCategorieChart from "../../components/DepensesCategorieChart"
 import DepensesJourChart from "../../components/DepensesJourChart"
+import Link from "next/link"
 
 export default async function DepensesPage(){
 
@@ -32,6 +33,23 @@ totalOperations > 0 ? totalDepenses / totalOperations : 0
 return(
 
 <div className="space-y-6">
+
+{/* HEADER + BOUTON */}
+
+<div className="flex justify-between items-center">
+  <div>
+    <h1 className="text-2xl font-bold">Dépenses</h1>
+    <p className="text-gray-500 text-sm">
+      Suivi des coûts et charges
+    </p>
+  </div>
+
+  <Link href="/depenses/create">
+    <button className="bg-red-600 hover:bg-red-700 text-white px-5 py-2 rounded-lg shadow">
+      + Ajouter une dépense
+    </button>
+  </Link>
+</div>
 
 {/* ---------------- KPI ---------------- */}
 

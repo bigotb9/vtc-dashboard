@@ -38,7 +38,7 @@ Evolution des dépenses
 <YAxis/>
 
 <Tooltip
-formatter={(v:number)=> v.toLocaleString()+" FCFA"}
+formatter={(v)=> Number(v).toLocaleString()+" FCFA"}
 />
 
 <Line

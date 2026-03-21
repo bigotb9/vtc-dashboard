@@ -1,72 +1,78 @@
 "use client"
 
-export default function RecettesTable({ recettes }){
+type Recette = {
+  "Horodatage": string
+  "chauffeur": string
+  "Montant net": number
+}
 
-return(
+export default function RecettesTable({ recettes }: { recettes: Recette[] }) {
 
-<div className="bg-white rounded-xl shadow p-6">
+  return (
 
-<h2 className="text-lg font-semibold mb-4">
-Liste des recettes
-</h2>
+    <div className="bg-white rounded-xl shadow p-6">
 
-<div className="max-h-[500px] overflow-y-auto">
+      <h2 className="text-lg font-semibold text-gray-900 mb-4">
+        Liste des recettes
+      </h2>
 
-<table className="w-full text-sm">
+      <div className="max-h-[500px] overflow-y-auto">
 
-<thead className="border-b text-gray-700">
+        <table className="w-full text-sm">
 
-<tr>
+          <thead className="border-b text-gray-900 font-semibold">
+            <tr>
+              <th className="text-left py-2">Date</th>
+              <th className="text-center">Chauffeur</th>
+              <th className="text-center">Montant</th>
+            </tr>
+          </thead>
 
-<th className="text-left py-2">
-Date
-</th>
+          <tbody>
 
-<th className="text-center">
-Chauffeur
-</th>
+            {recettes.map((r, i) => {
 
-<th className="text-center">
-Montant
-</th>
+              const date = r["Horodatage"]
+                ? new Date(r["Horodatage"]).toLocaleDateString()
+                : "-"
 
-</tr>
+              const chauffeur = r["chauffeur"] || "-"
 
-</thead>
+              const montant = Number(r["Montant net"] || 0)
 
-<tbody>
+              return (
 
-{recettes.map((r)=>(
+                <tr
+                  key={i}
+                  className="border-b hover:bg-gray-50 transition"
+                >
 
-<tr
-key={r.id}
-className="border-b hover:bg-gray-50"
->
+                  <td className="py-2 text-gray-800 font-medium">
+                    {date}
+                  </td>
 
-<td className="py-2 text-gray-800">
-{new Date(r.date_recette).toLocaleDateString()}
-</td>
+                  <td className="text-center text-gray-800">
+                    {chauffeur}
+                  </td>
 
-<td className="text-center text-gray-800">
-{r.chauffeur}
-</td>
+                  <td className="text-center font-semibold text-blue-600">
+                    {montant.toLocaleString()} FCFA
+                  </td>
 
-<td className="text-center text-green-600 font-semibold">
-{r.montant.toLocaleString()} FCFA
-</td>
+                </tr>
 
-</tr>
+              )
 
-))}
+            })}
 
-</tbody>
+          </tbody>
 
-</table>
+        </table>
 
-</div>
+      </div>
 
-</div>
+    </div>
 
-)
+  )
 
 }
