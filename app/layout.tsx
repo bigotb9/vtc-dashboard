@@ -1,7 +1,10 @@
+"use client"
+
 import "./globals.css"
 import Sidebar from "@/components/Sidebar"
 import AuthGuard from "@/components/AuthGuard"
 import { ThemeProvider } from "next-themes"
+import { useState } from "react"
 
 export default function RootLayout({
   children,
@@ -9,17 +12,68 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
 
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+
   return (
     <html lang="fr" suppressHydrationWarning>
       <body className="bg-background text-foreground">
         <ThemeProvider attribute="class" defaultTheme="dark">
 
-          {/* ⚠️ on ne met PLUS de logique ici */}
           <AuthGuard>
-            <Sidebar />
-            <main className="ml-64 p-6 bg-gray-100 dark:bg-[#0B0B0F] min-h-screen">
-              {children}
-            </main>
+
+            <div className="flex">
+
+              {/* ✅ SIDEBAR DESKTOP */}
+              <div className="hidden md:block w-64">
+                <Sidebar />
+              </div>
+
+              {/* ✅ SIDEBAR MOBILE */}
+              {sidebarOpen && (
+                <div className="fixed inset-0 z-50 flex">
+
+                  {/* overlay */}
+                  <div
+                    className="fixed inset-0 bg-black/50"
+                    onClick={() => setSidebarOpen(false)}
+                  />
+
+                  {/* menu */}
+                  <div className="relative w-64 bg-white dark:bg-[#0B0B0F] z-50 shadow-xl">
+                    <Sidebar />
+                  </div>
+
+                </div>
+              )}
+
+              {/* ✅ CONTENU */}
+              <div className="flex-1 min-h-screen">
+
+                {/* HEADER MOBILE */}
+                <div className="md:hidden p-4 flex items-center bg-white dark:bg-[#0B0B0F] shadow">
+
+                  <button
+                    onClick={() => setSidebarOpen(true)}
+                    className="text-xl"
+                  >
+                    ☰
+                  </button>
+
+                  <h1 className="ml-4 font-semibold">
+                    VTC Dashboard
+                  </h1>
+
+                </div>
+
+                {/* MAIN */}
+                <main className="p-4 md:ml-64 bg-gray-100 dark:bg-[#0B0B0F] min-h-screen">
+                  {children}
+                </main>
+
+              </div>
+
+            </div>
+
           </AuthGuard>
 
         </ThemeProvider>
