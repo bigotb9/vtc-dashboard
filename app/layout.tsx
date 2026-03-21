@@ -13,15 +13,14 @@ export default function RootLayout({
 }) {
 
   const pathname = usePathname()
-
-  const isPublicPage = pathname === "/" // login uniquement
+  const isLoginPage = pathname === "/"
 
   return (
     <html lang="fr" suppressHydrationWarning>
       <body className="bg-background text-foreground">
         <ThemeProvider attribute="class" defaultTheme="dark">
 
-          {isPublicPage ? (
+          {isLoginPage ? (
             children
           ) : (
             <AuthGuard>
