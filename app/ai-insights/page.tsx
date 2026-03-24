@@ -45,37 +45,37 @@ export default function AIInsightsPage() {
   // =========================
 
   useEffect(() => {
-    loadData()
+    const fetchData = async () => {
+
+      // INSIGHTS
+      const { data: ins } = await supabase
+        .from("vue_ai_insights_today")
+        .select("*")
+        .order("created_at", { ascending: false })
+
+      setInsights(ins || [])
+
+      // PROFIT
+      const { data: p } = await supabase
+        .from("vue_profit_journalier")
+        .select("*")
+        .order("date_recette", { ascending: false })
+        .limit(1)
+
+      setProfit(p?.[0] || null)
+
+      // VEHICULE TOP
+      const { data: v } = await supabase
+        .from("vue_ca_vehicules")
+        .select("*")
+        .order("ca_total", { ascending: false })
+        .limit(1)
+
+      setVehicle(v?.[0] || null)
+    }
+
+    fetchData()
   }, [])
-
-  const loadData = async () => {
-
-    // INSIGHTS
-    const { data: ins } = await supabase
-      .from("vue_ai_insights_today")
-      .select("*")
-      .order("created_at", { ascending: false })
-
-    setInsights(ins || [])
-
-    // PROFIT
-    const { data: p } = await supabase
-      .from("vue_profit_journalier")
-      .select("*")
-      .order("date_recette", { ascending: false })
-      .limit(1)
-
-    setProfit(p?.[0] || null)
-
-    // VEHICULE TOP
-    const { data: v } = await supabase
-      .from("vue_ca_vehicules")
-      .select("*")
-      .order("ca_total", { ascending: false })
-      .limit(1)
-
-    setVehicle(v?.[0] || null)
-  }
 
   // =========================
   // AI QUESTION

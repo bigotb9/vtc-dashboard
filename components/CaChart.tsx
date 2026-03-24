@@ -13,28 +13,33 @@ import {
 
 export default function CaChart() {
 
-  const [data, setData] = useState<any[]>([])
+  type CaRow = {
+    date_recette: string
+    chiffre_affaire: number
+  }
+
+  const [data, setData] = useState<CaRow[]>([])
 
   useEffect(() => {
+    const fetchData = async () => {
+
+      const { data } = await supabase
+        .from("vue_ca_journalier")
+        .select("date_recette, chiffre_affaire")
+        .order("date_recette", { ascending: true })
+
+      setData(data || [])
+    }
+
     fetchData()
   }, [])
-
-  async function fetchData() {
-
-    const { data } = await supabase
-      .from("vue_ca_journalier")
-      .select("date_recette, chiffre_affaire")
-      .order("date_recette", { ascending: true })
-
-    setData(data || [])
-  }
 
   return (
 
     <div className="bg-white p-6 rounded-2xl shadow-sm border mb-8">
 
       <h2 className="text-lg font-semibold mb-4 text-gray-900">
-        Chiffre d'affaires journalier
+        Chiffre d&apos;affaires journalier
       </h2>
 
       <ResponsiveContainer width="100%" height={300}>

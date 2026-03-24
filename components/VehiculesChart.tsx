@@ -9,14 +9,19 @@ Tooltip,
 ResponsiveContainer
 } from "recharts"
 
-export default function VehiculesChart({data}:{data:any[]}){
+type VehiculeChartItem = {
+  date_recette: string
+  ca_jour: number
+}
+
+export default function VehiculesChart({data}:{data:VehiculeChartItem[]}){
 
 return(
 
 <div className="bg-white p-6 rounded-xl shadow">
 
 <h2 className="text-lg font-semibold mb-4">
-Chiffre d'affaires véhicules
+Chiffre d&apos;affaires véhicules
 </h2>
 
 <ResponsiveContainer width="100%" height={300}>

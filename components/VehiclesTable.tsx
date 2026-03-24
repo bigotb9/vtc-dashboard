@@ -23,23 +23,24 @@ export default function VehiculesTable({
   }
 
   return (
-    <div className="bg-white rounded-xl shadow p-6">
+    <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-6 border border-gray-100 dark:border-gray-800">
 
-      <h2 className="text-xl font-bold text-gray-800 mb-6">
+      <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-6">
         Flotte véhicules
       </h2>
 
-      <table className="w-full text-sm">
+      <div className="overflow-x-auto">
+      <table className="w-full text-sm min-w-[600px]">
 
         <thead>
 
-          <tr className="border-b text-gray-500">
+          <tr className="border-b border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400">
 
             <th className="text-left py-3">Immatriculation</th>
 
             <th className="text-left py-3">Propriétaire</th>
 
-            <th className="text-left py-3">CA Aujourd'hui</th>
+            <th className="text-left py-3">CA Aujourd&apos;hui</th>
 
             <th className="text-left py-3">CA Mensuel</th>
 
@@ -59,14 +60,14 @@ export default function VehiculesTable({
 
             <tr
               key={v.id_vehicule}
-              className="border-b hover:bg-gray-50"
+              className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800"
             >
 
-              <td className="py-3 font-semibold text-gray-800">
+              <td className="py-3 font-semibold text-gray-800 dark:text-white">
                 {v.immatriculation}
               </td>
 
-              <td className="py-3 text-gray-600">
+              <td className="py-3 text-gray-600 dark:text-gray-400">
                 {v.proprietaire || "-"}
               </td>
 
@@ -136,6 +137,7 @@ export default function VehiculesTable({
         </tbody>
 
       </table>
+      </div>
 
     </div>
   )

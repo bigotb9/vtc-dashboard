@@ -33,17 +33,17 @@ export default function ChauffeursTable({ chauffeurs, classement }: Props) {
   }
 
   return (
-    <div className="bg-white p-6 rounded-xl shadow">
+    <div className="bg-white dark:bg-gray-900 p-6 rounded-xl shadow border border-gray-100 dark:border-gray-800">
 
-      <h2 className="text-lg font-semibold mb-4">
+      <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
         Liste des chauffeurs
       </h2>
 
-      <div className="max-h-[500px] overflow-y-auto">
+      <div className="max-h-[500px] overflow-y-auto overflow-x-auto">
 
-        <table className="w-full text-sm">
+        <table className="w-full text-sm min-w-[480px]">
 
-          <thead className="border-b text-gray-700">
+          <thead className="border-b border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300">
             <tr>
               <th className="text-left py-2">Chauffeur</th>
               <th className="text-center">Téléphone</th>
@@ -60,13 +60,13 @@ export default function ChauffeursTable({ chauffeurs, classement }: Props) {
               const ca = getCA(c.nom)
 
               return (
-                <tr key={c.id_chauffeur} className="border-b">
+                <tr key={c.id_chauffeur} className="border-b border-gray-100 dark:border-gray-800">
 
-                  <td className="py-2">
+                  <td className="py-2 text-gray-900 dark:text-white">
                     {c.nom}
                   </td>
 
-                  <td className="text-center">
+                  <td className="text-center text-gray-600 dark:text-gray-400">
                     {c.numero_wave || "-"}
                   </td>
 

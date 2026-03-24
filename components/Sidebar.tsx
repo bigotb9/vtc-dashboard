@@ -22,7 +22,11 @@ export default function Sidebar(){
 
   const pathname = usePathname()
   const router = useRouter()
-  const [user,setUser] = useState<any>(null)
+  type AuthUser = {
+    email?: string
+    user_metadata?: { name?: string }
+  }
+  const [user,setUser] = useState<AuthUser | null>(null)
 
   const [openBoyah, setOpenBoyah] = useState(true)
   const [openPrestataires, setOpenPrestataires] = useState(true)
@@ -117,37 +121,37 @@ export default function Sidebar(){
 
               {openPrestataires && (
                 <div className="ml-4">
-                  <Link href="/boyah-transport/prestataires/create" className="block px-3 py-1 text-xs hover:text-indigo-500">
+                  <Link href="/boyah-transport/prestataires/create" className="block px-3 py-1 text-xs text-gray-600 dark:text-gray-300 hover:text-indigo-500 dark:hover:text-indigo-400">
                     Create
                   </Link>
-                  <Link href="/boyah-transport/prestataires/list" className="block px-3 py-1 text-xs hover:text-indigo-500">
+                  <Link href="/boyah-transport/prestataires/list" className="block px-3 py-1 text-xs text-gray-600 dark:text-gray-300 hover:text-indigo-500 dark:hover:text-indigo-400">
                     List
                   </Link>
                 </div>
               )}
 
-              <button onClick={()=>setOpenVehicules(!openVehicules)} className="w-full text-left px-3 py-2 text-xs text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded">
+              <button onClick={()=>setOpenVehicules(!openVehicules)} className="w-full text-left px-3 py-2 text-xs text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded">
                 Véhicules ▼
               </button>
 
               {openVehicules && (
                 <div className="ml-4">
-                  <Link href="/boyah-transport/vehicules/create" className="block px-3 py-1 text-xs hover:text-indigo-500">
+                  <Link href="/boyah-transport/vehicules/create" className="block px-3 py-1 text-xs text-gray-600 dark:text-gray-300 hover:text-indigo-500 dark:hover:text-indigo-400">
                     Create
                   </Link>
-                  <Link href="/boyah-transport/vehicules/list" className="block px-3 py-1 text-xs hover:text-indigo-500">
+                  <Link href="/boyah-transport/vehicules/list" className="block px-3 py-1 text-xs text-gray-600 dark:text-gray-300 hover:text-indigo-500 dark:hover:text-indigo-400">
                     List
                   </Link>
                 </div>
               )}
 
-              <button onClick={()=>setOpenCommandes(!openCommandes)} className="w-full text-left px-3 py-2 text-xs text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded">
+              <button onClick={()=>setOpenCommandes(!openCommandes)} className="w-full text-left px-3 py-2 text-xs text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded">
                 Commandes ▼
               </button>
 
               {openCommandes && (
                 <div className="ml-4">
-                  <Link href="/boyah-transport/commandes/list" className="block px-3 py-1 text-xs hover:text-indigo-500">
+                  <Link href="/boyah-transport/commandes/list" className="block px-3 py-1 text-xs text-gray-600 dark:text-gray-300 hover:text-indigo-500 dark:hover:text-indigo-400">
                     List
                   </Link>
                 </div>

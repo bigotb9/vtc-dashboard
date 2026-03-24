@@ -13,10 +13,10 @@ const { data: chauffeurs } = await supabase
 const totalChauffeurs = chauffeurs?.length || 0
 
 const chauffeursActifs =
-chauffeurs?.filter((c:any)=> c.actif === true).length || 0
+chauffeurs?.filter((c)=> c.actif === true).length || 0
 
 const chauffeursInactifs =
-chauffeurs?.filter((c:any)=> c.actif === false).length || 0
+chauffeurs?.filter((c)=> c.actif === false).length || 0
 
 /* CLASSEMENT */
 
@@ -48,16 +48,16 @@ return(
 
 {/* HEADER + BOUTON */}
 
-<div className="flex justify-between items-center">
+<div className="flex flex-wrap justify-between items-start gap-3">
   <div>
-    <h1 className="text-2xl font-bold">Chauffeurs</h1>
+    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Chauffeurs</h1>
     <p className="text-gray-500 text-sm">
       Gestion des chauffeurs
     </p>
   </div>
 
   <Link href="/chauffeurs/create">
-    <button className="bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded-lg shadow">
+    <button className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow text-sm">
       + Ajouter un chauffeur
     </button>
   </Link>
@@ -65,23 +65,23 @@ return(
 
 {/* KPI */}
 
-<div className="grid grid-cols-3 gap-6">
+<div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
 
-<div className="bg-white p-6 rounded-xl shadow border border-gray-100">
+<div className="bg-white dark:bg-gray-900 p-6 rounded-xl shadow border border-gray-100 dark:border-gray-800">
 
-<p className="text-sm font-medium text-gray-600">
+<p className="text-sm font-medium text-gray-600 dark:text-gray-400">
 Total chauffeurs
 </p>
 
-<p className="text-3xl font-bold text-gray-900 mt-1">
+<p className="text-3xl font-bold text-gray-900 dark:text-white mt-1">
 {totalChauffeurs}
 </p>
 
 </div>
 
-<div className="bg-white p-6 rounded-xl shadow border border-gray-100">
+<div className="bg-white dark:bg-gray-900 p-6 rounded-xl shadow border border-gray-100 dark:border-gray-800">
 
-<p className="text-sm font-medium text-gray-600">
+<p className="text-sm font-medium text-gray-600 dark:text-gray-400">
 Chauffeurs actifs
 </p>
 
@@ -91,9 +91,9 @@ Chauffeurs actifs
 
 </div>
 
-<div className="bg-white p-6 rounded-xl shadow border border-gray-100">
+<div className="bg-white dark:bg-gray-900 p-6 rounded-xl shadow border border-gray-100 dark:border-gray-800">
 
-<p className="text-sm font-medium text-gray-600">
+<p className="text-sm font-medium text-gray-600 dark:text-gray-400">
 Chauffeurs inactifs
 </p>
 
@@ -107,9 +107,9 @@ Chauffeurs inactifs
 
 {/* GRAPH + TOP CHAUFFEUR */}
 
-<div className="grid grid-cols-3 gap-6">
+<div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-<div className="col-span-2 bg-white p-5 rounded-xl shadow">
+<div className="lg:col-span-2 bg-white dark:bg-gray-900 p-5 rounded-xl shadow border border-gray-100 dark:border-gray-800">
 
 <h2 className="text-lg font-semibold mb-4">
 Performance chauffeurs
@@ -119,9 +119,9 @@ Performance chauffeurs
 
 </div>
 
-<div className="bg-white p-5 rounded-xl shadow">
+<div className="bg-white dark:bg-gray-900 p-5 rounded-xl shadow border border-gray-100 dark:border-gray-800">
 
-<h2 className="text-lg font-semibold mb-4">
+<h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
 🏆 Top chauffeur
 </h2>
 
@@ -129,11 +129,11 @@ Performance chauffeurs
 
 <div>
 
-<p className="text-xl font-bold">
+<p className="text-xl font-bold text-gray-900 dark:text-white">
 {topChauffeur.nom}
 </p>
 
-<p className="text-2xl font-bold text-green-600">
+<p className="text-xl font-bold text-green-600 break-words">
 {topChauffeur.ca.toLocaleString()} FCFA
 </p>
 

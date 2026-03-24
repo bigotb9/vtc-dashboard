@@ -13,35 +13,34 @@ export default function SettingsPage() {
   const [repeatPassword, setRepeatPassword] = useState("")
 
   useEffect(() => {
+    const loadUser = async () => {
+
+      const { data, error } = await supabase.auth.getUser()
+
+      if (error || !data.user) return
+
+      const user = data.user
+
+      setEmail(user.email || "")
+
+      // récupérer display name depuis Auth
+      const name = user.user_metadata?.display_name
+      if (name) setDisplayName(name)
+
+      // récupérer avatar dans profiles
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("avatar_url")
+        .eq("id", user.id)
+        .single()
+
+      if (profile?.avatar_url) {
+        setAvatar(profile.avatar_url)
+      }
+    }
+
     loadUser()
   }, [])
-
-
-  async function loadUser() {
-
-    const { data, error } = await supabase.auth.getUser()
-
-    if (error || !data.user) return
-
-    const user = data.user
-
-    setEmail(user.email || "")
-
-    // récupérer display name depuis Auth
-    const name = user.user_metadata?.display_name
-    if (name) setDisplayName(name)
-
-    // récupérer avatar dans profiles
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("avatar_url")
-      .eq("id", user.id)
-      .single()
-
-    if (profile?.avatar_url) {
-      setAvatar(profile.avatar_url)
-    }
-  }
 
 
   async function uploadAvatar(event: React.ChangeEvent<HTMLInputElement>) {

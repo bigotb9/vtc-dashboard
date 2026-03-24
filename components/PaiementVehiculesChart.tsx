@@ -11,7 +11,7 @@ import {
   ResponsiveContainer
 } from "recharts"
 
-export default function PaiementVehiculesChart({ data: externalData }: any) {
+export default function PaiementVehiculesChart({ data: externalData }: { data?: unknown }) {
 
   const [data,setData] = useState([
     { name:"Payés", value:0, color:"#22c55e" },
@@ -19,39 +19,39 @@ export default function PaiementVehiculesChart({ data: externalData }: any) {
   ])
 
   useEffect(()=>{
+    const load = async () => {
+
+      const today = new Date().toISOString().split("T")[0]
+
+      const { data:vehicules } =
+        await supabase
+          .from("vehicules")
+          .select("id_vehicule")
+
+      const { data:recettes } =
+        await supabase
+          .from("recettes_wave")
+          .select("Horodatage")
+
+      const totalVehicules = vehicules?.length || 0
+
+      const recettesToday =
+        recettes?.filter(r =>
+          r.Horodatage?.startsWith(today)
+        ).length || 0
+
+      const payes = recettesToday
+      const nonPayes = totalVehicules - payes
+
+      setData([
+        { name:"Payés", value:payes, color:"#22c55e" },
+        { name:"Non payés", value:nonPayes, color:"#ef4444" }
+      ])
+
+    }
+
     load()
   },[])
-
-  async function load(){
-
-    const today = new Date().toISOString().split("T")[0]
-
-    const { data:vehicules } =
-      await supabase
-        .from("vehicules")
-        .select("id_vehicule")
-
-    const { data:recettes } =
-      await supabase
-        .from("recettes_wave")
-        .select("Horodatage")
-
-    const totalVehicules = vehicules?.length || 0
-
-    const recettesToday =
-      recettes?.filter(r =>
-        r.Horodatage?.startsWith(today)
-      ).length || 0
-
-    const payes = recettesToday
-    const nonPayes = totalVehicules - payes
-
-    setData([
-      { name:"Payés", value:payes, color:"#22c55e" },
-      { name:"Non payés", value:nonPayes, color:"#ef4444" }
-    ])
-
-  }
 
   return(
     <div className="bg-white p-6 rounded-xl shadow h-[350px]">

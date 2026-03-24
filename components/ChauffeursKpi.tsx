@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect,useState } from "react"
+import React, { useEffect,useState } from "react"
 import { supabase } from "@/lib/supabaseClient"
 import { Users,CheckCircle,XCircle } from "lucide-react"
 
@@ -13,32 +13,32 @@ export default function ChauffeursKpi(){
   })
 
   useEffect(()=>{
+    const loadStats = async () => {
+
+      const { data } = await supabase
+        .from("chauffeurs")
+        .select("*")
+
+      if(!data) return
+
+      const total = data.length
+
+      const actifs =
+        data.filter(c => c.statut === "ACTIF").length
+
+      const inactifs =
+        data.filter(c => c.statut !== "ACTIF").length
+
+      setStats({
+        total,
+        actifs,
+        inactifs
+      })
+
+    }
+
     loadStats()
   },[])
-
-  async function loadStats(){
-
-    const { data } = await supabase
-      .from("chauffeurs")
-      .select("*")
-
-    if(!data) return
-
-    const total = data.length
-
-    const actifs =
-      data.filter(c => c.statut === "ACTIF").length
-
-    const inactifs =
-      data.filter(c => c.statut !== "ACTIF").length
-
-    setStats({
-      total,
-      actifs,
-      inactifs
-    })
-
-  }
 
   return(
 
@@ -68,7 +68,7 @@ export default function ChauffeursKpi(){
 
 }
 
-function Kpi({title,value,icon}:any){
+function Kpi({title,value,icon}:{title:string;value:number;icon:React.ReactNode}){
 
   return(
 

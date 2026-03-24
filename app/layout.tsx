@@ -54,19 +54,19 @@ export default function RootLayout({
 
                   <button
                     onClick={() => setSidebarOpen(true)}
-                    className="text-xl"
+                    className="text-xl text-gray-800 dark:text-white"
                   >
                     ☰
                   </button>
 
-                  <h1 className="ml-4 font-semibold">
+                  <h1 className="ml-4 font-semibold text-gray-900 dark:text-white">
                     VTC Dashboard
                   </h1>
 
                 </div>
 
                 {/* MAIN */}
-                <main className="p-4 md:ml-64 bg-gray-100 dark:bg-[#0B0B0F] min-h-screen">
+                <main className="p-4 bg-gray-100 dark:bg-[#0B0B0F] min-h-screen">
                   {children}
                 </main>
 

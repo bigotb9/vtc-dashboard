@@ -15,20 +15,25 @@ const colors = ["#6366f1","#22c55e","#f97316","#ef4444","#06b6d4"]
 
 export default function DepensesChart() {
 
-  const [data, setData] = useState<any[]>([])
+  type DepenseRow = {
+    type_depense: string
+    total_depenses: number
+  }
+
+  const [data, setData] = useState<DepenseRow[]>([])
 
   useEffect(() => {
+    const fetchData = async () => {
+
+      const { data } = await supabase
+        .from("vue_depenses_categories")
+        .select("type_depense, total_depenses")
+
+      setData(data || [])
+    }
+
     fetchData()
   }, [])
-
-  async function fetchData() {
-
-    const { data } = await supabase
-      .from("vue_depenses_categories")
-      .select("type_depense, total_depenses")
-
-    setData(data || [])
-  }
 
   return (
 
@@ -57,8 +62,8 @@ export default function DepensesChart() {
           </Pie>
 
           <Tooltip
-            formatter={(value: any) =>
-              `${Number(value).toLocaleString()} FCFA`
+            formatter={(value) =>
+              `${Number(value ?? 0).toLocaleString()} FCFA`
             }
           />
 

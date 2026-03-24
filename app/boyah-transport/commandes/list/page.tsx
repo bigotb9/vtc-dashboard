@@ -28,7 +28,6 @@ type Order = {
 
 export default function CommandesPage() {
   const [orders, setOrders] = useState<Order[]>([]);
-  const [filtered, setFiltered] = useState<Order[]>([]);
   const [search, setSearch] = useState("");
 
   useEffect(() => {
@@ -36,19 +35,15 @@ export default function CommandesPage() {
       .then((res) => res.json())
       .then((data) => {
         setOrders(data.orders || []);
-        setFiltered(data.orders || []);
       });
   }, []);
 
   // 🔍 SEARCH
-  useEffect(() => {
-    const result = orders.filter((o) =>
-      `${o.short_id} ${o.status} ${o.category}`
-        .toLowerCase()
-        .includes(search.toLowerCase())
-    );
-    setFiltered(result);
-  }, [search, orders]);
+  const filtered = orders.filter((o) =>
+    `${o.short_id} ${o.status} ${o.category}`
+      .toLowerCase()
+      .includes(search.toLowerCase())
+  );
 
   // 💰 KPI
   const totalRevenue = orders
@@ -63,7 +58,7 @@ export default function CommandesPage() {
 
   // 📊 GRAPH (courses par catégorie)
   const categoryData = Object.entries(
-    orders.reduce((acc: any, o) => {
+    orders.reduce((acc: Record<string, number>, o) => {
       acc[o.category] = (acc[o.category] || 0) + 1;
       return acc;
     }, {})

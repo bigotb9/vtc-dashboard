@@ -36,7 +36,19 @@ export async function GET() {
       );
     }
 
-    const drivers = data.driver_profiles?.map((d: any) => ({
+    type DriverProfile = {
+      driver_profile?: {
+        id?: string
+        last_name?: string
+        first_name?: string
+        phones?: string[]
+        work_status?: string
+      }
+      current_status?: { status?: string }
+      car?: { brand?: string; model?: string; number?: string }
+      accounts?: { balance?: string }[]
+    }
+    const drivers = data.driver_profiles?.map((d: DriverProfile) => ({
       id: d.driver_profile?.id,
       nom: d.driver_profile?.last_name,
       prenom: d.driver_profile?.first_name,

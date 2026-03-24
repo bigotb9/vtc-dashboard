@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabaseClient"
 import { CheckCircle, AlertTriangle } from "lucide-react"
 
-export default function AlertesPaiements({ data }: any) {
+export default function AlertesPaiements({ data }: { data?: unknown }) {
 
   const [stats,setStats] = useState({
     payes:0,
@@ -14,56 +14,56 @@ export default function AlertesPaiements({ data }: any) {
   const [vehiculesRetard,setVehiculesRetard] = useState<string[]>([])
 
   useEffect(()=>{
-    load()
-  },[])
+    const load = async () => {
 
-  async function load(){
+      const today = new Date().toISOString().split("T")[0]
 
-    const today = new Date().toISOString().split("T")[0]
+      const { data:vehicules } =
+        await supabase
+          .from("vehicules")
+          .select("id_vehicule, immatriculation")
 
-    const { data:vehicules } =
-      await supabase
-        .from("vehicules")
-        .select("id_vehicule, immatriculation")
+      const { data:recettes } =
+        await supabase
+          .from("recettes_wave")
+          .select("Horodatage")
 
-    const { data:recettes } =
-      await supabase
-        .from("recettes_wave")
-        .select("Horodatage")
+      const totalVehicules = vehicules?.length || 0
 
-    const totalVehicules = vehicules?.length || 0
+      const recettesToday =
+        recettes?.filter(r =>
+          r.Horodatage?.startsWith(today)
+        ).length || 0
 
-    const recettesToday =
-      recettes?.filter(r =>
-        r.Horodatage?.startsWith(today)
-      ).length || 0
+      const payes = recettesToday
+      const retard = totalVehicules - payes
 
-    const payes = recettesToday
-    const retard = totalVehicules - payes
+      setStats({
+        payes,
+        retard
+      })
 
-    setStats({
-      payes,
-      retard
-    })
+      /* ---------------------------
+         LISTE VEHICULES NON PAYES
+      ---------------------------- */
 
-    /* ---------------------------
-       LISTE VEHICULES NON PAYES
-    ---------------------------- */
-
-    const vehiculesPayes = vehicules
-      ?.slice(0,payes)
-      .map(v => v.immatriculation) || []
-
-    const nonPayes =
-      vehicules
-        ?.filter(v =>
-          !vehiculesPayes.includes(v.immatriculation)
-        )
+      const vehiculesPayes = vehicules
+        ?.slice(0,payes)
         .map(v => v.immatriculation) || []
 
-    setVehiculesRetard(nonPayes)
+      const nonPayes =
+        vehicules
+          ?.filter(v =>
+            !vehiculesPayes.includes(v.immatriculation)
+          )
+          .map(v => v.immatriculation) || []
 
-  }
+      setVehiculesRetard(nonPayes)
+
+    }
+
+    load()
+  },[])
 
   return(
 
@@ -84,7 +84,7 @@ export default function AlertesPaiements({ data }: any) {
             </div>
 
             <span className="text-gray-700">
-              Véhicules payés aujourd'hui
+              Véhicules payés aujourd&apos;hui
             </span>
 
           </div>

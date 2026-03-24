@@ -10,7 +10,12 @@ ResponsiveContainer,
 CartesianGrid
 } from "recharts"
 
-export default function RecettesChart({ data }: { data:any[] }){
+type RecetteChartItem = {
+  date: string
+  montant: number
+}
+
+export default function RecettesChart({ data }: { data: RecetteChartItem[] }){
 
 return(
 

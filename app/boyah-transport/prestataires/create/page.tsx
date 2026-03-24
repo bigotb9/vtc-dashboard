@@ -3,12 +3,33 @@
 import { useEffect, useState } from "react"
 
 export default function CreateDriverPage() {
-  const [vehicles, setVehicles] = useState<any[]>([])
-  const [filteredVehicles, setFilteredVehicles] = useState<any[]>([])
+  type VehicleItem = {
+    id?: string
+    number?: string
+    brand?: string
+    model?: string
+    car?: {
+      id?: string
+      number?: string
+      brand?: string
+      model?: string
+    }
+  }
+
+  type WorkRuleItem = {
+    id?: string
+    name?: string
+    rule?: {
+      id?: string
+      name?: string
+    }
+  }
+
+  const [vehicles, setVehicles] = useState<VehicleItem[]>([])
   const [search, setSearch] = useState("")
   const [showDropdown, setShowDropdown] = useState(false)
 
-  const [workRules, setWorkRules] = useState<any[]>([])
+  const [workRules, setWorkRules] = useState<WorkRuleItem[]>([])
 
   const [form, setForm] = useState({
     first_name: "",
@@ -23,8 +44,8 @@ export default function CreateDriverPage() {
     work_rule_id: "",
   })
 
-  const getCar = (item: any) => item?.car || item
-  const getRule = (item: any) => item?.rule || item
+  const getCar = (item: VehicleItem) => item?.car || item
+  const getRule = (item: WorkRuleItem) => item?.rule || item
 
   useEffect(() => {
     fetch("/api/yango/vehicles")
@@ -32,7 +53,6 @@ export default function CreateDriverPage() {
       .then(data => {
         const list = data?.cars || data?.vehicles || data?.items || []
         setVehicles(list)
-        setFilteredVehicles(list)
       })
 
     fetch("/api/yango/work-rules")
@@ -49,24 +69,21 @@ export default function CreateDriverPage() {
       })
   }, [])
 
-  useEffect(() => {
-    const filtered = vehicles.filter((item: any) => {
-      const car = getCar(item)
-      return (car?.number || "")
-        .toLowerCase()
-        .includes(search.toLowerCase())
-    })
-    setFilteredVehicles(filtered)
-  }, [search, vehicles])
+  const filteredVehicles = vehicles.filter((item) => {
+    const car = getCar(item)
+    return (car?.number || "")
+      .toLowerCase()
+      .includes(search.toLowerCase())
+  })
 
-  const handleChange = (e: any) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value })
   }
 
-  const handleSelectVehicle = (item: any) => {
+  const handleSelectVehicle = (item: VehicleItem) => {
     const car = getCar(item)
-    setForm({ ...form, car_id: car.id })
-    setSearch(car.number)
+    setForm({ ...form, car_id: car.id ?? "" })
+    setSearch(car.number ?? "")
     setShowDropdown(false)
   }
 
@@ -152,7 +169,7 @@ export default function CreateDriverPage() {
               <option disabled>Aucune règle disponible</option>
             )}
 
-            {workRules.map((wr: any, i: number) => {
+            {workRules.map((wr, i) => {
               const rule = getRule(wr)
 
               if (!rule?.id) return null
@@ -190,7 +207,7 @@ export default function CreateDriverPage() {
 
           {showDropdown && (
             <div className="dropdown">
-              {filteredVehicles.map((item: any, i) => {
+              {filteredVehicles.map((item, i) => {
                 const car = getCar(item)
                 if (!car?.number) return null
 

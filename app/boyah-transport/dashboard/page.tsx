@@ -12,26 +12,39 @@ import {
 
 export default function BoyahTransportPage() {
 
-  const [orders, setOrders] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-
-  const fetchData = async () => {
-    try {
-      const res = await fetch("/api/yango/orders")
-      const data = await res.json()
-
-      const ordersData = data.orders || []
-
-      setOrders(ordersData)
-
-    } catch (e) {
-      console.error(e)
-    } finally {
-      setLoading(false)
+  type Order = {
+    id: string
+    short_id: number
+    status: string
+    price?: string
+    created_at: string
+    car?: {
+      brand_model?: string
+      brand?: string
+      model?: string
     }
   }
 
+  const [orders, setOrders] = useState<Order[]>([])
+  const [loading, setLoading] = useState(true)
+
   useEffect(()=>{
+    const fetchData = async () => {
+      try {
+        const res = await fetch("/api/yango/orders")
+        const data = await res.json()
+
+        const ordersData = data.orders || []
+
+        setOrders(ordersData)
+
+      } catch (e) {
+        console.error(e)
+      } finally {
+        setLoading(false)
+      }
+    }
+
     fetchData()
   },[])
 
@@ -63,7 +76,7 @@ export default function BoyahTransportPage() {
   // ================= GRAPH =================
 
   const hourlyData = Object.values(
-    todayOrders.reduce((acc:any,o:any)=>{
+    todayOrders.reduce((acc: Record<string, { name: string; value: number }>, o)=>{
       const h = new Date(o.created_at).getHours()
 
       if(!acc[h]) acc[h] = { name: `${h}h`, value: 0 }
@@ -77,13 +90,13 @@ export default function BoyahTransportPage() {
   // ================= VEHICULES =================
 
   const vehicles = Object.entries(
-    orders.reduce((acc:any,o:any)=>{
+    orders.reduce((acc: Record<string, number>, o)=>{
       const key = o.car?.brand_model || "N/A"
       acc[key] = (acc[key] || 0) + 1
       return acc
     },{})
   )
-  .sort((a:any,b:any)=>b[1]-a[1])
+  .sort((a,b)=>(b[1] as number)-(a[1] as number))
   .slice(0,5)
 
   return (
@@ -117,7 +130,7 @@ export default function BoyahTransportPage() {
       <div className="bg-[#020617] border border-gray-800 rounded-xl p-4">
         <h2 className="text-indigo-400 mb-4">Top véhicules</h2>
 
-        {vehicles.map((v:any,i)=>(
+        {vehicles.map((v,i)=>(
           <div key={i} className="flex justify-between py-2 border-b border-gray-800 text-sm">
             <span>{v[0]}</span>
             <span className="text-indigo-400">{v[1]}</span>
@@ -140,7 +153,7 @@ export default function BoyahTransportPage() {
               <span>{o.car?.brand_model || "-"}</span>
 
               <span className="text-green-400">
-                {parseFloat(o.price || 0).toLocaleString()} FCFA
+                {parseFloat(o.price || "0").toLocaleString()} FCFA
               </span>
 
               <span
@@ -166,7 +179,7 @@ export default function BoyahTransportPage() {
 
 // ================= UI =================
 
-function KPI({title,value,color}:any){
+function KPI({title,value,color}:{title:string;value:number|string;color:string}){
   return(
     <div className={`${color} p-4 rounded-xl`}>
       <div className="text-xs opacity-80">{title}</div>

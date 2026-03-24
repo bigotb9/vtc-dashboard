@@ -25,64 +25,64 @@ export default function KpiCards() {
   })
 
   useEffect(() => {
+    const fetchKpi = async () => {
+
+      const { data: caJour } = await supabase
+        .from("vue_ca_journalier")
+        .select("date, chiffre_affaire")
+        .order("date", { ascending: false })
+        .limit(1)
+        .single()
+
+      const { data: caMois } = await supabase
+        .from("vue_ca_mensuel")
+        .select("annee, mois, chiffre_affaire")
+        .order("annee", { ascending: false })
+        .order("mois", { ascending: false })
+        .limit(1)
+        .single()
+
+      const { data: caTotal } = await supabase
+        .from("vue_ca_journalier")
+        .select("chiffre_affaire")
+
+      const totalCA =
+        caTotal?.reduce(
+          (sum, row) => sum + Number(row.chiffre_affaire || 0),
+          0
+        ) || 0
+
+      const { data: depenses } = await supabase
+        .from("vue_depenses_categories")
+        .select("total_depenses")
+
+      const totalDepenses =
+        depenses?.reduce(
+          (sum, row) => sum + Number(row.total_depenses || 0),
+          0
+        ) || 0
+
+      const { count: vehicules } = await supabase
+        .from("vehicules")
+        .select("*", { count: "exact", head: true })
+
+      const { count: chauffeurs } = await supabase
+        .from("chauffeurs")
+        .select("*", { count: "exact", head: true })
+
+      setKpi({
+        caTotal: totalCA,
+        depensesTotal: totalDepenses,
+        profit: totalCA - totalDepenses,
+        caJour: caJour?.chiffre_affaire || 0,
+        caMois: caMois?.chiffre_affaire || 0,
+        vehicules: vehicules || 0,
+        chauffeurs: chauffeurs || 0
+      })
+    }
+
     fetchKpi()
   }, [])
-
-  async function fetchKpi() {
-
-    const { data: caJour } = await supabase
-      .from("vue_ca_journalier")
-      .select("date, chiffre_affaire")
-      .order("date", { ascending: false })
-      .limit(1)
-      .single()
-
-    const { data: caMois } = await supabase
-      .from("vue_ca_mensuel")
-      .select("annee, mois, chiffre_affaire")
-      .order("annee", { ascending: false })
-      .order("mois", { ascending: false })
-      .limit(1)
-      .single()
-
-    const { data: caTotal } = await supabase
-      .from("vue_ca_journalier")
-      .select("chiffre_affaire")
-
-    const totalCA =
-      caTotal?.reduce(
-        (sum, row) => sum + Number(row.chiffre_affaire || 0),
-        0
-      ) || 0
-
-    const { data: depenses } = await supabase
-      .from("vue_depenses_categories")
-      .select("total_depenses")
-
-    const totalDepenses =
-      depenses?.reduce(
-        (sum, row) => sum + Number(row.total_depenses || 0),
-        0
-      ) || 0
-
-    const { count: vehicules } = await supabase
-      .from("vehicules")
-      .select("*", { count: "exact", head: true })
-
-    const { count: chauffeurs } = await supabase
-      .from("chauffeurs")
-      .select("*", { count: "exact", head: true })
-
-    setKpi({
-      caTotal: totalCA,
-      depensesTotal: totalDepenses,
-      profit: totalCA - totalDepenses,
-      caJour: caJour?.chiffre_affaire || 0,
-      caMois: caMois?.chiffre_affaire || 0,
-      vehicules: vehicules || 0,
-      chauffeurs: chauffeurs || 0
-    })
-  }
 
   const financeCards = [
     {

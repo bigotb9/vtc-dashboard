@@ -28,7 +28,7 @@ export default function VehiclesPage() {
     fetch("/api/yango/vehicles")
       .then((res) => res.json())
       .then((data) => {
-        const formatted = (data.cars || []).map((v: any) => ({
+        const formatted = (data.cars || []).map((v: { id: string; brand: string; model: string; number: string; status: string; year: number }) => ({
           id: v.id,
           brand: v.brand,
           model: v.model,
@@ -50,14 +50,14 @@ export default function VehiclesPage() {
 
   // 📊 MODELS COUNT (TOP 10)
   const modelData = Object.values(
-    vehicles.reduce((acc: any, v) => {
+    vehicles.reduce((acc: Record<string, { name: string; value: number }>, v) => {
       const key = `${v.brand} ${v.model}`;
       acc[key] = acc[key] || { name: key, value: 0 };
       acc[key].value++;
       return acc;
     }, {})
   )
-    .sort((a: any, b: any) => b.value - a.value)
+    .sort((a, b) => b.value - a.value)
     .slice(0, 10);
 
   return (

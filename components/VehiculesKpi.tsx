@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import React, { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabaseClient"
 import { Car, Building2, Users, CheckCircle } from "lucide-react"
 
@@ -14,42 +14,42 @@ export default function VehiculesKpi(){
   })
 
   useEffect(()=>{
+    const loadStats = async () => {
+
+      const { data } = await supabase
+        .from("vehicules")
+        .select("*")
+
+      if(!data) return
+
+      const total = data.length
+
+      const societe =
+        data.filter(v =>
+          v.proprietaire?.toUpperCase() === "SOCIETE"
+        ).length
+
+      const clients =
+        data.filter(v =>
+          v.proprietaire?.toUpperCase() !== "SOCIETE"
+        ).length
+
+      const actifs =
+        data.filter(v =>
+          v.statut?.toUpperCase() === "ACTIF"
+        ).length
+
+      setStats({
+        total,
+        societe,
+        clients,
+        actifs
+      })
+
+    }
+
     loadStats()
   },[])
-
-  async function loadStats(){
-
-    const { data } = await supabase
-      .from("vehicules")
-      .select("*")
-
-    if(!data) return
-
-    const total = data.length
-
-    const societe =
-      data.filter(v =>
-        v.proprietaire?.toUpperCase() === "SOCIETE"
-      ).length
-
-    const clients =
-      data.filter(v =>
-        v.proprietaire?.toUpperCase() !== "SOCIETE"
-      ).length
-
-    const actifs =
-      data.filter(v =>
-        v.statut?.toUpperCase() === "ACTIF"
-      ).length
-
-    setStats({
-      total,
-      societe,
-      clients,
-      actifs
-    })
-
-  }
 
   return(
 
@@ -85,7 +85,7 @@ export default function VehiculesKpi(){
 
 }
 
-function Kpi({title,value,icon}:any){
+function Kpi({title,value,icon}:{title:string;value:number;icon:React.ReactNode}){
 
   return(
 

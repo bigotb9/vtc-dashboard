@@ -24,7 +24,6 @@ type Driver = {
 
 export default function PrestatairesPage() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
-  const [filtered, setFiltered] = useState<Driver[]>([]);
   const [search, setSearch] = useState("");
 
   useEffect(() => {
@@ -32,19 +31,15 @@ export default function PrestatairesPage() {
       .then((res) => res.json())
       .then((data) => {
         setDrivers(data.drivers || []);
-        setFiltered(data.drivers || []);
       });
   }, []);
 
   // 🔍 recherche
-  useEffect(() => {
-    const result = drivers.filter((d) =>
-      `${d.prenom} ${d.nom} ${d.telephone}`
-        .toLowerCase()
-        .includes(search.toLowerCase())
-    );
-    setFiltered(result);
-  }, [search, drivers]);
+  const filtered = drivers.filter((d) =>
+    `${d.prenom} ${d.nom} ${d.telephone}`
+      .toLowerCase()
+      .includes(search.toLowerCase())
+  );
 
   // 📊 KPI
   const total = drivers.length;

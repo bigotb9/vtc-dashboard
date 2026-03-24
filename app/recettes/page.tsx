@@ -14,13 +14,18 @@ const { data: recettes } = await supabase
 
 /* KPI */
 
+type Recette = {
+  Horodatage: string
+  "Montant net": number
+}
+
 const totalRecettes =
-(recettes || []).reduce((sum:number,r:any)=>
+(recettes as Recette[] || []).reduce((sum: number, r) =>
 sum + (r["Montant net"] || 0)
 ,0)
 
 const recettesAujourd =
-(recettes || []).filter((r:any)=>{
+(recettes as Recette[] || []).filter((r)=>{
 
 const d = new Date(r["Horodatage"])
 const today = new Date()
@@ -31,14 +36,14 @@ d.getMonth() === today.getMonth() &&
 d.getFullYear() === today.getFullYear()
 )
 
-}).reduce((sum:number,r:any)=> sum + (r["Montant net"] || 0),0)
+}).reduce((sum: number, r) => sum + (r["Montant net"] || 0),0)
 
 const transactions = recettes?.length || 0
 
 /* DATA GRAPH */
 
 const graphData =
-(recettes || []).map((r:any)=>({
+(recettes as Recette[] || []).map((r)=>({
 
 date: r["Horodatage"],
 montant: r["Montant net"]
@@ -78,7 +83,7 @@ return(
 </div>
 
 <div className="bg-white p-5 rounded-xl shadow">
-<p className="text-sm text-gray-500">Recettes aujourd'hui</p>
+<p className="text-sm text-gray-500">Recettes aujourd&apos;hui</p>
 <p className="text-2xl font-bold text-blue-600">
 {recettesAujourd.toLocaleString()} FCFA
 </p>
