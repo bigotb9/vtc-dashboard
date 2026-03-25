@@ -18,7 +18,10 @@ export default async function ChauffeursPage() {
   let versementsTop: { date_recette: string; montant: number }[] = []
   if (topChauffeur) {
     const { data } = await supabase.from("vue_ca_chauffeur_jour").select("*").eq("nom", topChauffeur.nom)
-    versementsTop = data || []
+    versementsTop = (data || []).map((d: Record<string, unknown>) => ({
+      date_recette: String(d.date_recette ?? d.date ?? ""),
+      montant:      Number(d.montant ?? d.ca ?? d.ca_jour ?? d.chiffre_affaire ?? 0),
+    }))
   }
 
   const kpis = [

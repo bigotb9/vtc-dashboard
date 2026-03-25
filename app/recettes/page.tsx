@@ -7,7 +7,7 @@ import { TrendingUp, Wallet, Activity, Plus } from "lucide-react"
 export default async function RecettesPage() {
 
   const { data: recettes } = await supabase
-    .from("recettes_wave")
+    .from("vue_recettes_vehicules")
     .select("*")
     .order("Horodatage", { ascending: false })
 

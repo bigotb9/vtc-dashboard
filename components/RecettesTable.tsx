@@ -5,7 +5,7 @@ import { Search } from "lucide-react"
 
 type Recette = {
   Horodatage: string
-  chauffeur: string
+  chauffeur?: string
   "Montant net": number
 }
 
@@ -13,7 +13,7 @@ export default function RecettesTable({ recettes }: { recettes: Recette[] }) {
   const [search, setSearch] = useState("")
 
   const filtered = recettes.filter(r =>
-    r.chauffeur?.toLowerCase().includes(search.toLowerCase())
+    !search || (r.chauffeur?.toLowerCase() ?? "").includes(search.toLowerCase())
   )
 
   return (
