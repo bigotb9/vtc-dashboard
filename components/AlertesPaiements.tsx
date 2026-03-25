@@ -2,162 +2,80 @@
 
 import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabaseClient"
-import { CheckCircle, AlertTriangle } from "lucide-react"
+import { CheckCircle, AlertTriangle, Bell } from "lucide-react"
 
 export default function AlertesPaiements({ data }: { data?: unknown }) {
+  const [stats,            setStats]            = useState({ payes: 0, retard: 0 })
+  const [vehiculesRetard,  setVehiculesRetard]  = useState<string[]>([])
 
-  const [stats,setStats] = useState({
-    payes:0,
-    retard:0
-  })
-
-  const [vehiculesRetard,setVehiculesRetard] = useState<string[]>([])
-
-  useEffect(()=>{
+  useEffect(() => {
     const load = async () => {
-
       const today = new Date().toISOString().split("T")[0]
-
-      const { data:vehicules } =
-        await supabase
-          .from("vehicules")
-          .select("id_vehicule, immatriculation")
-
-      const { data:recettes } =
-        await supabase
-          .from("recettes_wave")
-          .select("Horodatage")
-
+      const [{ data: vehicules }, { data: recettes }] = await Promise.all([
+        supabase.from("vehicules").select("id_vehicule, immatriculation"),
+        supabase.from("recettes_wave").select("Horodatage"),
+      ])
       const totalVehicules = vehicules?.length || 0
-
-      const recettesToday =
-        recettes?.filter(r =>
-          r.Horodatage?.startsWith(today)
-        ).length || 0
-
-      const payes = recettesToday
-      const retard = totalVehicules - payes
-
-      setStats({
-        payes,
-        retard
-      })
-
-      /* ---------------------------
-         LISTE VEHICULES NON PAYES
-      ---------------------------- */
-
-      const vehiculesPayes = vehicules
-        ?.slice(0,payes)
-        .map(v => v.immatriculation) || []
-
-      const nonPayes =
-        vehicules
-          ?.filter(v =>
-            !vehiculesPayes.includes(v.immatriculation)
-          )
-          .map(v => v.immatriculation) || []
-
-      setVehiculesRetard(nonPayes)
-
+      const recettesToday  = recettes?.filter(r => r.Horodatage?.startsWith(today)).length || 0
+      const payes  = recettesToday
+      const retard = Math.max(0, totalVehicules - payes)
+      setStats({ payes, retard })
+      const vehiculesPayes = vehicules?.slice(0, payes).map(v => v.immatriculation) || []
+      setVehiculesRetard(vehicules?.filter(v => !vehiculesPayes.includes(v.immatriculation)).map(v => v.immatriculation) || [])
     }
-
     load()
-  },[])
+  }, [])
 
-  return(
+  return (
+    <div className="bg-white dark:bg-[#0D1424] rounded-2xl border border-gray-100 dark:border-[#1E2D45] p-5 shadow-sm flex flex-col">
 
-    <div className="bg-white p-6 rounded-xl shadow h-[350px] flex flex-col">
-
-      <h2 className="text-lg font-semibold text-gray-900 mb-4">
-        Alertes paiements
-      </h2>
-
-      <div className="space-y-4 mb-4">
-
-        <div className="flex justify-between items-center">
-
-          <div className="flex items-center gap-3">
-
-            <div className="bg-green-100 p-2 rounded-lg">
-              <CheckCircle className="text-green-600" size={20}/>
-            </div>
-
-            <span className="text-gray-700">
-              Véhicules payés aujourd&apos;hui
-            </span>
-
-          </div>
-
-          <span className="text-green-600 font-bold text-lg">
-            {stats.payes}
-          </span>
-
+      <div className="flex items-center gap-2.5 mb-4">
+        <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-sm">
+          <Bell size={13} className="text-white" />
         </div>
-
-
-        <div className="flex justify-between items-center">
-
-          <div className="flex items-center gap-3">
-
-            <div className="bg-red-100 p-2 rounded-lg">
-              <AlertTriangle className="text-red-600" size={20}/>
-            </div>
-
-            <span className="text-gray-700">
-              Véhicules en retard
-            </span>
-
-          </div>
-
-          <span className="text-red-600 font-bold text-lg">
-            {stats.retard}
-          </span>
-
+        <div>
+          <h2 className="text-sm font-bold text-gray-900 dark:text-white">Alertes paiements</h2>
+          <p className="text-xs text-gray-400 dark:text-gray-600">Aujourd'hui</p>
         </div>
-
       </div>
 
-      {/* LISTE VEHICULES */}
+      <div className="space-y-2.5 mb-4">
+        <div className="flex items-center justify-between p-3 bg-emerald-50 dark:bg-emerald-500/10 rounded-xl border border-emerald-100 dark:border-emerald-500/20">
+          <div className="flex items-center gap-2.5">
+            <CheckCircle size={15} className="text-emerald-600 dark:text-emerald-400" />
+            <span className="text-xs font-medium text-emerald-800 dark:text-emerald-300">Payés aujourd'hui</span>
+          </div>
+          <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">{stats.payes}</span>
+        </div>
 
-      <div className="border-t pt-3 flex-1 overflow-auto">
+        <div className="flex items-center justify-between p-3 bg-red-50 dark:bg-red-500/10 rounded-xl border border-red-100 dark:border-red-500/20">
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle size={15} className="text-red-600 dark:text-red-400" />
+            <span className="text-xs font-medium text-red-800 dark:text-red-300">En retard</span>
+          </div>
+          <span className="text-sm font-bold text-red-600 dark:text-red-400">{stats.retard}</span>
+        </div>
+      </div>
 
-        <p className="text-sm font-semibold text-gray-700 mb-2">
+      <div className="flex-1 overflow-auto">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-600 mb-2">
           Véhicules non payés
         </p>
-
         {vehiculesRetard.length === 0 ? (
-
-          <p className="text-gray-400 text-sm">
-            Aucun véhicule en retard
-          </p>
-
+          <div className="flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-400">
+            <CheckCircle size={13} />Tous les véhicules sont à jour
+          </div>
         ) : (
-
-          <ul className="space-y-2 text-sm text-gray-900 font-medium">
-
-            {vehiculesRetard.map((v,index)=>(
-              <li
-                key={index}
-                className="flex justify-between border-b pb-1"
-              >
-                <span>{v}</span>
-
-                <span className="text-red-500">
-                  non payé
-                </span>
-
-              </li>
+          <div className="space-y-1.5 max-h-[140px] overflow-y-auto">
+            {vehiculesRetard.map((v, i) => (
+              <div key={i} className="flex items-center justify-between py-1.5 border-b border-gray-50 dark:border-[#1A2235] last:border-0">
+                <span className="font-mono text-xs font-semibold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-white/10 px-2 py-0.5 rounded-lg">{v}</span>
+                <span className="text-[10px] font-semibold text-red-500 bg-red-50 dark:bg-red-500/10 px-2 py-0.5 rounded-full">non payé</span>
+              </div>
             ))}
-
-          </ul>
-
+          </div>
         )}
-
       </div>
-
     </div>
-
   )
-
 }
