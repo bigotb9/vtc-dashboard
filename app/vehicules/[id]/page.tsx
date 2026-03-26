@@ -3,7 +3,7 @@ import Link from "next/link"
 import Image from "next/image"
 import {
   ArrowLeft, Car, User, Wrench,
-  TrendingUp, Wallet, AlertTriangle, CheckCircle, Clock
+  TrendingUp, Wallet, AlertTriangle, CheckCircle, Clock, Pencil
 } from "lucide-react"
 import VehiculeUpdateDocs from "@/components/VehiculeUpdateDocs"
 
@@ -111,10 +111,14 @@ export default async function VehiculePage({
           className="flex items-center justify-center w-9 h-9 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-500 hover:text-indigo-600 hover:border-indigo-300 transition shadow-sm">
           <ArrowLeft size={16} />
         </Link>
-        <div>
+        <div className="flex-1 min-w-0">
           <p className="text-xs text-gray-500 dark:text-gray-400">Véhicules / Profil</p>
-          <h1 className="text-xl font-bold text-gray-900 dark:text-white">{v.immatriculation}</h1>
+          <h1 className="text-xl font-bold text-gray-900 dark:text-white font-mono">{v.immatriculation}</h1>
         </div>
+        <Link href={`/vehicules/${id}/edit`}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border border-indigo-200 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition shadow-sm">
+          <Pencil size={14} />Modifier
+        </Link>
       </div>
 
       {/* ── HERO ── */}
