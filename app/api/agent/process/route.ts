@@ -200,6 +200,9 @@ export async function POST(req: NextRequest) {
 
     const type = forcedType || getMessageType(message)
 
+    // ── DEBUG LOG ─────────────────────────────────────────────────────────────
+    console.log("[BOYA DEBUG]", JSON.stringify({ message, type, forcedType, chat_id }))
+
     // Commande /memoire : affichage direct
     if (type === "show_memory") {
       const { data: mem } = await sb.from("agent_memory").select("*").order("importance", { ascending: false }).limit(30)
