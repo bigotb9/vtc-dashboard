@@ -222,10 +222,21 @@ export async function POST(req: NextRequest) {
         : Promise.resolve({ data: [] }),
     ])
 
-    // Nettoyer l'historique : pas de contenu vide + alternance user/assistant obligatoire
+    // Mots de salutation à exclure de l'historique (réponses corrompues)
+    const GREETING_PATTERNS = ["bonjour boss", "bonjour !", "salut boss", "bienvenue sur boya",
+      "comment je peux t'aider", "comment puis-je vous aider", "prêt à bosser", "qu'est-ce qu'on attaque",
+      "que voulez-vous qu'on attaque", "je suis à votre écoute", "je suis là, prêt"]
+
+    // Nettoyer l'historique : pas de contenu vide, pas de salutations, alternance obligatoire
     const rawHistory: ConvMessage[] = (recentConvs || [])
       .reverse()
-      .filter(c => c.content?.trim().length > 0)
+      .filter(c => {
+        if (!c.content?.trim()) return false
+        const lower = c.content.toLowerCase()
+        // Exclure les réponses assistant qui sont des salutations
+        if (c.role === "assistant" && GREETING_PATTERNS.some(p => lower.includes(p))) return false
+        return true
+      })
       .map(c => ({ role: c.role as "user" | "assistant", content: c.content }))
 
     // Garantir l'alternance user/assistant (Claude l'exige)
