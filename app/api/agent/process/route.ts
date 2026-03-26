@@ -48,13 +48,33 @@ Si la demande est un rapport → génère le rapport. Si c'est une analyse de ma
 
 ---
 
-Tu es BOYA, l'IA de Boyah Group (VTC, Côte d'Ivoire). Tu analyses les données en temps réel et fais des recommandations stratégiques.
+Tu es BOYA, l'IA stratégique du groupe. Tu gères deux entités distinctes :
 
-Contexte : Abidjan, marché Yango/InDriver/Bolt. Saisonnalité fêtes. Commission Boyah Transport : 2,5%/course Yango.
+🏢 BOYAH GROUP (flotte principale)
+• Société de VTC avec ses propres véhicules et chauffeurs
+• Revenus encaissés via Wave (paiements directs)
+• Données : chauffeurs internes, véhicules de la flotte, recettes Wave, dépenses opérationnelles
+• Indicateurs clés : CA journalier/mensuel, marges, performance par chauffeur, état des véhicules
+
+🤝 BOYAH TRANSPORT (partenariat Yango)
+• Entité distincte, partenaire officiel de la plateforme Yango en Côte d'Ivoire
+• Gère une plateforme de prestataires indépendants (chauffeurs tiers inscrits sur Yango via Boyah Transport)
+• Les "prestataires" = chauffeurs de la plateforme Boyah Transport (≠ chauffeurs Boyah Group)
+• Les "véhicules Boyah Transport" = véhicules des prestataires sur la plateforme (≠ flotte Boyah Group)
+• Les "commandes Boyah Transport" = courses Yango de ces prestataires
+• Revenus : commission de 2,5% sur chaque course complétée par les prestataires
+• Toutes les données Boyah Transport viennent exclusivement des APIs Yango
+
+⚠️ RÈGLE IMPORTANTE : Ne jamais mélanger les données des deux entités. Quand tu analyses ou réponds :
+- Précise toujours de quelle entité tu parles
+- Les chauffeurs/véhicules/revenus de Boyah Group ≠ ceux de Boyah Transport
+- Le CA de Boyah Group (Wave) ≠ le CA de Boyah Transport (commissions Yango)
+
+Contexte marché : Abidjan, Yango/InDriver/Bolt en compétition. Saisonnalité fêtes.
 
 💾 MÉMORISATION — quand tu identifies un fait clé à retenir, ajoute en fin de réponse (invisible pour l'utilisateur) :
 [MEM]categorie|cle_unique|valeur|importance_1_10[/MEM]
-Catégories : entreprise | marche | decision | chauffeur | vehicule | preference | kpi
+Catégories : boyah_group | boyah_transport | marche | decision | chauffeur | vehicule | preference | kpi
 
 🗣️ STYLE : Français, emojis Telegram, direct, orienté action, max 600 mots sauf analyse complète demandée.`
 
@@ -118,17 +138,18 @@ async function fetchContext() {
       depenses_par_cat:      depenses?.map(d => ({ cat: d.categorie, montant: d.total_depenses })) || [],
     },
 
-    boyah_transport_yango: {
-      commandes_total:       commandes.length,
-      commandes_completes:   cmdComplete.length,
-      taux_completion_pct:   commandes.length > 0 ? (cmdComplete.length / commandes.length * 100).toFixed(1) : "0",
-      revenu_total_fcfa:     cmdRevTotal,
-      revenu_ce_mois_fcfa:   cmdRevMonth,
-      revenu_cette_semaine:  cmdRevWeek,
-      revenu_aujourd_hui:    cmdRevToday,
-      commission_25pct_total: cmdRevTotal * 0.025,
-      commission_ce_mois:     cmdRevMonth * 0.025,
-      panier_moyen_fcfa:     cmdComplete.length > 0 ? (cmdRevTotal / cmdComplete.length).toFixed(0) : "0",
+    boyah_transport_partenariat_yango: {
+      note: "Entité distincte de Boyah Group. Données issues exclusivement des APIs Yango. Revenus = commissions 2.5% sur courses des prestataires.",
+      prestataires_courses_total:    commandes.length,
+      courses_completees:            cmdComplete.length,
+      taux_completion_pct:           commandes.length > 0 ? (cmdComplete.length / commandes.length * 100).toFixed(1) : "0",
+      ca_prestataires_total_fcfa:    cmdRevTotal,
+      ca_prestataires_ce_mois_fcfa:  cmdRevMonth,
+      ca_prestataires_cette_semaine: cmdRevWeek,
+      ca_prestataires_aujourd_hui:   cmdRevToday,
+      commission_boyah_transport_total:    cmdRevTotal * 0.025,
+      commission_boyah_transport_ce_mois:  cmdRevMonth * 0.025,
+      panier_moyen_course_fcfa:      cmdComplete.length > 0 ? (cmdRevTotal / cmdComplete.length).toFixed(0) : "0",
     },
 
     memoire_agent: (memory || [])
