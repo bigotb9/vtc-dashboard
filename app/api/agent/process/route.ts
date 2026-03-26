@@ -41,43 +41,22 @@ async function tavilySearch(query: string): Promise<string> {
 }
 
 // ── Personnalité et rôle de l'agent ──────────────────────────────────────────
-const SYSTEM_PROMPT = `Tu es BOYA, l'assistant IA stratégique de Boyah Group, entreprise de VTC en Côte d'Ivoire.
+const SYSTEM_PROMPT = `⚡ INSTRUCTION PRIORITAIRE N°1 :
+Tu reçois une demande → tu l'EXÉCUTES immédiatement. Point.
+NE JAMAIS commencer par "Bonjour", "Boss", "Salut", une présentation de tes capacités, ou un menu d'options.
+Si la demande est un rapport → génère le rapport. Si c'est une analyse de marché → fais l'analyse. Si c'est un bilan → produis le bilan. DIRECTEMENT. SANS INTRODUCTION.
 
-Tu as accès en temps réel à toutes les données de l'entreprise et tu dois les analyser intelligemment.
+---
 
-🎯 TES MISSIONS :
-• Analyser les performances financières et opérationnelles
-• Détecter les anomalies, tendances et opportunités
-• Faire des recommandations stratégiques concrètes et chiffrées
-• Surveiller le marché VTC en Côte d'Ivoire et en Afrique de l'Ouest
-• Mémoriser le contexte de l'entreprise pour un suivi continu
+Tu es BOYA, l'IA de Boyah Group (VTC, Côte d'Ivoire). Tu analyses les données en temps réel et fais des recommandations stratégiques.
 
-🌍 TON CONTEXTE MARCHÉ :
-• Abidjan : marché VTC dominé par Yango, concurrence InDriver et Bolt en croissance
-• Économie ivoirienne : classe moyenne en expansion, usage mobile fort
-• Saisonnalité : pics en fêtes (Noël, Tabaski), basse saison juillet-août
-• Réglementation : secteur peu régulé mais en évolution
-• Commission Boyah Transport : 2,5% sur chaque course Yango
+Contexte : Abidjan, marché Yango/InDriver/Bolt. Saisonnalité fêtes. Commission Boyah Transport : 2,5%/course Yango.
 
-💾 MÉMORISATION :
-Quand tu identifies un fait important à retenir pour les prochaines conversations, inclus-le en fin de réponse dans ce format exact (ne l'affiche pas à l'utilisateur, c'est une balise système) :
+💾 MÉMORISATION — quand tu identifies un fait clé à retenir, ajoute en fin de réponse (invisible pour l'utilisateur) :
 [MEM]categorie|cle_unique|valeur|importance_1_10[/MEM]
-
 Catégories : entreprise | marche | decision | chauffeur | vehicule | preference | kpi
 
-Exemples :
-[MEM]decision|objectif_ca_2025|Objectif CA annuel fixé à 50M FCFA|9[/MEM]
-[MEM]preference|format_rapport|L'utilisateur préfère les rapports concis avec bullet points|7[/MEM]
-
-🚀 RÈGLE ABSOLUE D'EXÉCUTION :
-Quand l'utilisateur demande une tâche précise (rapport, analyse, point marché, bilan, veille, performance, etc.), EXÉCUTE-LA IMMÉDIATEMENT sans aucune introduction ni salutation. Va droit au contenu. NE commence JAMAIS par "Bonjour", "Boss", un menu de commandes, ou une présentation de tes capacités.
-
-🗣️ STYLE :
-• Réponds toujours en français
-• Utilise des emojis pour structurer (Telegram)
-• Sois direct, précis, orienté action
-• Maximum 600 mots sauf si analyse complète demandée
-• Commence directement par le contenu demandé, jamais par une salutation`
+🗣️ STYLE : Français, emojis Telegram, direct, orienté action, max 600 mots sauf analyse complète demandée.`
 
 type ConvMessage = { role: "user" | "assistant"; content: string }
 
@@ -286,7 +265,9 @@ export async function POST(req: NextRequest) {
     let userContent = ""
 
     if (type === "daily_report") {
-      userContent = `📊 Génère le rapport matinal complet de Boyah Group pour le ${context.date}.
+      userContent = `[EXÉCUTE DIRECTEMENT — pas de salutation, pas d'introduction]
+
+📊 Génère le rapport matinal complet de Boyah Group pour le ${context.date}.
 
 Inclus :
 1. Résumé exécutif de la situation (hier + tendances)
@@ -300,7 +281,9 @@ ${JSON.stringify(context, null, 2)}
 ${webContext ? `\n🌐 ACTUALITÉS DU MARCHÉ :\n${webContext}` : ""}`
 
     } else if (type === "alerts") {
-      userContent = `🔍 Analyse les données et identifie UNIQUEMENT les anomalies critiques.
+      userContent = `[EXÉCUTE DIRECTEMENT — pas de salutation]
+
+🔍 Analyse les données et identifie UNIQUEMENT les anomalies critiques.
 
 Critères d'alerte : CA aujourd'hui < moyenne, taux annulation > 30%, vehicules en retard paiement, profit négatif.
 
@@ -311,7 +294,9 @@ DONNÉES :
 ${JSON.stringify(context, null, 2)}`
 
     } else if (type === "market_research") {
-      userContent = `🌍 Réalise la veille marché hebdomadaire de Boyah Group.
+      userContent = `[EXÉCUTE DIRECTEMENT — commence immédiatement l'analyse, pas de salutation]
+
+🌍 Réalise la veille marché de Boyah Group.
 
 Analyse :
 1. Tendances marché VTC Côte d'Ivoire (Abidjan) — croise tes connaissances avec les actualités ci-dessous
