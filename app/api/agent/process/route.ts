@@ -217,10 +217,10 @@ export async function POST(req: NextRequest) {
         .limit(12),
     ])
 
-    const history: ConvMessage[] = (recentConvs || []).reverse().map(c => ({
-      role: c.role as "user" | "assistant",
-      content: c.content,
-    }))
+    const history: ConvMessage[] = (recentConvs || [])
+      .reverse()
+      .filter(c => c.content?.trim().length > 0)
+      .map(c => ({ role: c.role as "user" | "assistant", content: c.content }))
 
     // ── Tavily search si pertinent ────────────────────────────────────────────
     let webContext = ""
