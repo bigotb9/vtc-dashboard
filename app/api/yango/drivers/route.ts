@@ -26,9 +26,6 @@ export async function GET() {
 
     const data = await response.json();
 
-    // 🔴 DEBUG IMPORTANT (à enlever après test)
-    console.log("YANGO RESPONSE:", data);
-
     if (!response.ok) {
       return NextResponse.json(
         { error: data?.message || "Erreur Yango API" },

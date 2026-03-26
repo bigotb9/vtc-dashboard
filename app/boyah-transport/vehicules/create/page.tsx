@@ -208,7 +208,7 @@ export default function CreateYangoCarPage() {
       }),
     }
 
-    const res  = await fetch("/api/yango/create-car", { method: "POST", body: JSON.stringify(payload) })
+    const res  = await fetch("/api/yango/create-car", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
     const data = await res.json()
     setLoading(false)
 

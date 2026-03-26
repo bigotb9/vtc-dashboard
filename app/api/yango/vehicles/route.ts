@@ -8,6 +8,7 @@ export async function GET() {
         "Content-Type": "application/json",
         "X-API-Key": process.env.YANGO_CARS_API_KEY!,
         "X-Client-ID": process.env.CLID!,
+        "X-Park-ID": process.env.ID_DU_PARTENAIRE!,
       },
       body: JSON.stringify({
         limit: 500,

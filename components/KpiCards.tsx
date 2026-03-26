@@ -47,9 +47,9 @@ export default function KpiCards() {
       const today    = new Date().toISOString().split("T")[0]
       const tomorrow = new Date(Date.now() + 86400000).toISOString().split("T")[0]
 
-      const [caJourRes, caMoisRes, depensesRes, vehRes, chauffRes] = await Promise.all([
+      const [caJourRes, caAllRes, depensesRes, vehRes, chauffRes] = await Promise.all([
         supabase.from("recettes_wave").select('"Montant net"').gte("Horodatage", today).lt("Horodatage", tomorrow),
-        supabase.from("vue_ca_mensuel").select("chiffre_affaire").order("annee", { ascending: false }).order("mois", { ascending: false }).limit(1).single(),
+        supabase.from("vue_ca_mensuel").select("chiffre_affaire").order("annee", { ascending: false }).order("mois", { ascending: false }),
         supabase.from("vue_depenses_categories").select("total_depenses"),
         supabase.from("vehicules").select("*", { count: "exact", head: true }),
         supabase.from("chauffeurs").select("*", { count: "exact", head: true }),
@@ -57,12 +57,14 @@ export default function KpiCards() {
 
       const caJour   = (caJourRes.data || []).reduce((s, r) => s + Number(r["Montant net"] || 0), 0)
       const totalDep = (depensesRes.data || []).reduce((s, r) => s + Number(r.total_depenses || 0), 0)
-      const caMois   = caMoisRes.data?.chiffre_affaire || 0
+      // CA mensuel = mois le plus récent ; CA total = cumul de tous les mois
+      const caMois   = Number(caAllRes.data?.[0]?.chiffre_affaire || 0)
+      const caTotal  = (caAllRes.data || []).reduce((s, r) => s + Number(r.chiffre_affaire || 0), 0)
 
       setKpi({
-        caTotal:       caMois,
+        caTotal,
         depensesTotal: totalDep,
-        profit:        caMois - totalDep,
+        profit:        caTotal - totalDep,
         caJour,
         caMois,
         vehicules:     vehRes.count   || 0,

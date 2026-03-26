@@ -15,8 +15,6 @@ export async function GET() {
 
     const data = await response.json()
 
-    console.log("WORK RULES RAW:", data)
-
     if (!response.ok) {
       return NextResponse.json(
         { error: data },
