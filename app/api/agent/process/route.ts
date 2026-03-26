@@ -217,10 +217,19 @@ export async function POST(req: NextRequest) {
         .limit(12),
     ])
 
-    const history: ConvMessage[] = (recentConvs || [])
+    // Nettoyer l'historique : pas de contenu vide + alternance user/assistant obligatoire
+    const rawHistory: ConvMessage[] = (recentConvs || [])
       .reverse()
       .filter(c => c.content?.trim().length > 0)
       .map(c => ({ role: c.role as "user" | "assistant", content: c.content }))
+
+    // Garantir l'alternance user/assistant (Claude l'exige)
+    const history: ConvMessage[] = []
+    for (const msg of rawHistory) {
+      if (history.length === 0 || history[history.length - 1].role !== msg.role) {
+        history.push(msg)
+      }
+    }
 
     // ── Détecter si la question nécessite les données business ───────────────
     const BUSINESS_KEYWORDS = ["revenu", "ca ", "chiffre", "fcfa", "profit", "dépense", "depense",
@@ -296,12 +305,20 @@ ${webContext ? `\n🌐 RÉSULTATS DE RECHERCHE WEB EN TEMPS RÉEL :\n${webContex
         : `${message}${webContext ? `\n\n🌐 RECHERCHE WEB :\n${webContext}` : ""}`
     }
 
+    // Sécurité : userContent ne doit jamais être vide
+    const safeContent = userContent?.trim() || message?.trim() || "Bonjour"
+
+    // Dernière vérification : si history finit par un user, on ne peut pas ajouter un autre user
+    const cleanHistory = history.length > 0 && history[history.length - 1].role === "user"
+      ? history.slice(0, -1)
+      : history
+
     // Call Claude Opus
     const claudeResponse = await anthropic.messages.create({
       model:      "claude-opus-4-6",
       max_tokens: 2048,
       system:     SYSTEM_PROMPT,
-      messages:   [...history, { role: "user", content: userContent }],
+      messages:   [...cleanHistory, { role: "user", content: safeContent }],
     })
 
     const rawResponse = claudeResponse.content.find(b => b.type === "text")?.text || "Je n'ai pas pu générer une réponse."
