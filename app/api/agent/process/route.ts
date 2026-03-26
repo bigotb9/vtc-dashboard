@@ -228,14 +228,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, response: text, type })
     }
 
-    // Fetch context + conversation history
+    // Fetch context + conversation history (historique seulement en mode conversation)
+    const isConversation = type === "conversation"
     const [context, { data: recentConvs }] = await Promise.all([
       fetchContext(),
-      sb.from("agent_conversations")
-        .select("role, content")
-        .eq("telegram_chat_id", chat_id || "system")
-        .order("created_at", { ascending: false })
-        .limit(12),
+      isConversation
+        ? sb.from("agent_conversations")
+            .select("role, content")
+            .eq("telegram_chat_id", chat_id || "system")
+            .order("created_at", { ascending: false })
+            .limit(12)
+        : Promise.resolve({ data: [] }),
     ])
 
     // Nettoyer l'historique : pas de contenu vide + alternance user/assistant obligatoire
