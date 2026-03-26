@@ -123,8 +123,9 @@ export default function EditChauffeur() {
 
   /* ── chargement des données existantes ── */
   useEffect(() => {
-    supabase.from("chauffeurs").select("*").eq("id_chauffeur", id).single()
-      .then(({ data }) => {
+    const load = async () => {
+      try {
+        const { data } = await supabase.from("chauffeurs").select("*").eq("id_chauffeur", id).single()
         if (!data) return
         setNom(data.nom ?? "")
         setNumeroWave(data.numero_wave ?? "")
@@ -139,8 +140,11 @@ export default function EditChauffeur() {
         setPhotoUrl(data.photo ?? null);     setPhotoPreview(data.photo ?? null)
         setRectoUrl(data.photo_permis_recto ?? null); setRectoPreview(data.photo_permis_recto ?? null)
         setVersoUrl(data.photo_permis_verso ?? null); setVersoPreview(data.photo_permis_verso ?? null)
-      })
-      .finally(() => setLoadingData(false))
+      } finally {
+        setLoadingData(false)
+      }
+    }
+    load()
   }, [id])
 
   /* ── sélection fichier → preview ── */

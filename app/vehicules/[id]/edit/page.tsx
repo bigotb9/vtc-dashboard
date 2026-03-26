@@ -125,8 +125,9 @@ export default function EditVehicule() {
 
   /* ── chargement ── */
   useEffect(() => {
-    supabase.from("vehicules").select("*").eq("id_vehicule", id).single()
-      .then(({ data }) => {
+    const load = async () => {
+      try {
+        const { data } = await supabase.from("vehicules").select("*").eq("id_vehicule", id).single()
         if (!data) return
         setForm({
           immatriculation:           data.immatriculation           ?? "",
@@ -144,8 +145,11 @@ export default function EditVehicule() {
         setPhotoUrl(data.photo ?? null);              setPhotoPreview(data.photo ?? null)
         setRectoUrl(data.carte_grise_recto ?? null);  setRectoPreview(data.carte_grise_recto ?? null)
         setVersoUrl(data.carte_grise_verso ?? null);  setVersoPreview(data.carte_grise_verso ?? null)
-      })
-      .finally(() => setLoadingData(false))
+      } finally {
+        setLoadingData(false)
+      }
+    }
+    load()
   }, [id])
 
   const handleFile = (

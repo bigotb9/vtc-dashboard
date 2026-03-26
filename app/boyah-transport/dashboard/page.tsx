@@ -297,7 +297,7 @@ export default function BoyahDashboardPage() {
               <Pie data={pieData} cx="50%" cy="50%" innerRadius={45} outerRadius={65} paddingAngle={4} dataKey="value" strokeWidth={0}>
                 {pieData.map((e, i) => <Cell key={i} fill={e.color} />)}
               </Pie>
-              <Tooltip formatter={(v: number, name: string) => [`${v}`, name]} />
+              <Tooltip formatter={(v, name) => [`${v}`, String(name)]} />
             </PieChart>
           </ResponsiveContainer>
           <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 mt-1">
