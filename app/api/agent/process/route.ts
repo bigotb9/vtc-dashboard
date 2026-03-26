@@ -222,6 +222,15 @@ export async function POST(req: NextRequest) {
       .filter(c => c.content?.trim().length > 0)
       .map(c => ({ role: c.role as "user" | "assistant", content: c.content }))
 
+    // ── Détecter si la question nécessite les données business ───────────────
+    const BUSINESS_KEYWORDS = ["revenu", "ca ", "chiffre", "fcfa", "profit", "dépense", "depense",
+      "chauffeur", "véhicule", "vehicule", "voiture", "flotte", "commande", "course",
+      "yango", "retard", "paiement", "wave", "performance", "kpi", "bilan", "analyse",
+      "boyah", "rapport", "combien", "aujourd'hui", "hier", "semaine", "mois", "résultat"]
+
+    const needsData = type !== "conversation" ||
+      BUSINESS_KEYWORDS.some(k => message.toLowerCase().includes(k))
+
     // ── Tavily search si pertinent ────────────────────────────────────────────
     let webContext = ""
     const needsSearch =
@@ -281,13 +290,10 @@ ${JSON.stringify(context, null, 2)}
 ${webContext ? `\n🌐 RÉSULTATS DE RECHERCHE WEB EN TEMPS RÉEL :\n${webContext}` : ""}`
 
     } else {
-      userContent = `${message}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📊 DONNÉES TEMPS RÉEL BOYAH GROUP
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-${JSON.stringify(context, null, 2)}
-${webContext ? `\n🌐 RECHERCHE WEB PERTINENTE :\n${webContext}` : ""}`
+      // Conversation normale — données uniquement si pertinent
+      userContent = needsData
+        ? `${message}\n\n📊 DONNÉES BOYAH GROUP :\n${JSON.stringify(context, null, 2)}${webContext ? `\n\n🌐 RECHERCHE WEB :\n${webContext}` : ""}`
+        : `${message}${webContext ? `\n\n🌐 RECHERCHE WEB :\n${webContext}` : ""}`
     }
 
     // Call Claude Opus
