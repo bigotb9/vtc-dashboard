@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import { supabase } from "@/lib/supabaseClient"
 import KpiCards from "@/components/KpiCards"
 import RecettesTable from "@/components/RecettesTable"
