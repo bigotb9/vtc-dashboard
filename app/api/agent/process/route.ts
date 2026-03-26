@@ -178,10 +178,36 @@ async function extractAndSaveMemory(text: string) {
 
 // ── Handler Telegram commands ─────────────────────────────────────────────────
 function getMessageType(text: string): string {
-  if (text?.startsWith("/rapport"))  return "daily_report"
-  if (text?.startsWith("/alerte"))   return "alerts"
-  if (text?.startsWith("/marche"))   return "market_research"
-  if (text?.startsWith("/memoire"))  return "show_memory"
+  if (!text) return "conversation"
+  const t = text.toLowerCase()
+
+  // Commandes slash
+  if (t.startsWith("/rapport"))  return "daily_report"
+  if (t.startsWith("/alerte"))   return "alerts"
+  if (t.startsWith("/marche"))   return "market_research"
+  if (t.startsWith("/memoire"))  return "show_memory"
+
+  // Langage naturel — rapport / bilan général
+  if (/rapport\s*(complet|global|général|journalier|du jour|de la journée|matinal|matin)/.test(t) ||
+      /bilan\s*(du jour|journalier|complet|global)/.test(t) ||
+      /comment\s*(ça va|va|se passe)\s*(aujourd'hui|ce matin|la journée|les affaires)/.test(t)) {
+    return "daily_report"
+  }
+
+  // Langage naturel — marché / concurrence
+  if (/rapport\s*(du|de|sur le)\s*marché/.test(t) ||
+      /veille\s*(marché|concurrentielle|concurrence)/.test(t) ||
+      /(analyse|étude|état)\s*(du|de|sur le)\s*marché/.test(t) ||
+      /(concurrent|concurrence|yango|indriver|bolt)\s*(analyse|actualité|news|position)/.test(t)) {
+    return "market_research"
+  }
+
+  // Langage naturel — alertes
+  if (/\b(alertes?|anomalie|problème|urgence|attention)\b/.test(t) &&
+      /\b(vérifie|check|analyse|vois|regarde|montre)\b/.test(t)) {
+    return "alerts"
+  }
+
   return "conversation"
 }
 
