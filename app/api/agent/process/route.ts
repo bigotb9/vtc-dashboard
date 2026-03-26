@@ -9,6 +9,37 @@ const sb = createClient(
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
+// ── Tavily Web Search ─────────────────────────────────────────────────────────
+const MARKET_KEYWORDS = ["marché", "concurrent", "yango", "indriver", "bolt", "actualité", "tendance", "prix", "réglementation", "afrique", "abidjan", "vtc", "transport", "uber"]
+
+async function tavilySearch(query: string): Promise<string> {
+  try {
+    const res = await fetch("https://api.tavily.com/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        api_key:      process.env.TAVILY_API_KEY,
+        query,
+        search_depth: "basic",
+        max_results:  5,
+        include_answer: true,
+      }),
+    })
+    const data = await res.json()
+    if (!data.results?.length) return ""
+
+    const summary = data.answer ? `Résumé : ${data.answer}\n\n` : ""
+    const sources = data.results
+      .map((r: { title: string; content: string; url: string }) =>
+        `• ${r.title}\n  ${r.content?.slice(0, 200)}...\n  Source: ${r.url}`
+      )
+      .join("\n\n")
+    return `${summary}${sources}`
+  } catch {
+    return ""
+  }
+}
+
 // ── Personnalité et rôle de l'agent ──────────────────────────────────────────
 const SYSTEM_PROMPT = `Tu es BOYA, l'assistant IA stratégique de Boyah Group, entreprise de VTC en Côte d'Ivoire.
 
@@ -191,6 +222,22 @@ export async function POST(req: NextRequest) {
       content: c.content,
     }))
 
+    // ── Tavily search si pertinent ────────────────────────────────────────────
+    let webContext = ""
+    const needsSearch =
+      type === "market_research" ||
+      type === "daily_report" ||
+      (type === "conversation" && MARKET_KEYWORDS.some(k => message.toLowerCase().includes(k)))
+
+    if (needsSearch && process.env.TAVILY_API_KEY) {
+      const query = type === "market_research"
+        ? "marché VTC Côte d'Ivoire Abidjan Yango InDriver transport 2024 2025"
+        : type === "daily_report"
+        ? "actualité transport VTC Abidjan Côte d'Ivoire"
+        : message
+      webContext = await tavilySearch(query)
+    }
+
     // Construction du prompt selon le type
     let userContent = ""
 
@@ -205,7 +252,8 @@ Inclus :
 5. Météo business (🟢 bien / 🟡 attention / 🔴 critique)
 
 DONNÉES TEMPS RÉEL :
-${JSON.stringify(context, null, 2)}`
+${JSON.stringify(context, null, 2)}
+${webContext ? `\n🌐 ACTUALITÉS DU MARCHÉ :\n${webContext}` : ""}`
 
     } else if (type === "alerts") {
       userContent = `🔍 Analyse les données et identifie UNIQUEMENT les anomalies critiques.
@@ -222,14 +270,15 @@ ${JSON.stringify(context, null, 2)}`
       userContent = `🌍 Réalise la veille marché hebdomadaire de Boyah Group.
 
 Analyse :
-1. Tendances marché VTC Côte d'Ivoire (Abidjan) basées sur tes connaissances
+1. Tendances marché VTC Côte d'Ivoire (Abidjan) — croise tes connaissances avec les actualités ci-dessous
 2. Mouvements concurrents (Yango, InDriver, Bolt)
 3. Opportunités de croissance identifiées
 4. Menaces et risques à surveiller
 5. Recommandations stratégiques basées sur nos données actuelles
 
 DONNÉES ENTREPRISE :
-${JSON.stringify(context, null, 2)}`
+${JSON.stringify(context, null, 2)}
+${webContext ? `\n🌐 RÉSULTATS DE RECHERCHE WEB EN TEMPS RÉEL :\n${webContext}` : ""}`
 
     } else {
       userContent = `${message}
@@ -237,7 +286,8 @@ ${JSON.stringify(context, null, 2)}`
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📊 DONNÉES TEMPS RÉEL BOYAH GROUP
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-${JSON.stringify(context, null, 2)}`
+${JSON.stringify(context, null, 2)}
+${webContext ? `\n🌐 RECHERCHE WEB PERTINENTE :\n${webContext}` : ""}`
     }
 
     // Call Claude Opus
