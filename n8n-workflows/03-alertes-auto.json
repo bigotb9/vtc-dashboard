@@ -1,0 +1,84 @@
+{
+  "name": "03 – BOYA Alertes Intelligentes (toutes les 4h)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "cronExpression", "expression": "0 */4 * * *" }]
+        }
+      },
+      "name": "Toutes les 4h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.NEXTJS_URL }}/api/agent/process",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "Content-Type", "value": "application/json" }]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "body": "={\n  \"type\": \"alerts\",\n  \"chat_id\": \"{{ $env.TELEGRAM_CHAT_ID }}\"\n}",
+        "options": { "timeout": 120000 }
+      },
+      "name": "Analyser Alertes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.response }}",
+              "operation": "notEqual",
+              "value2": "RAS"
+            }
+          ]
+        }
+      },
+      "name": "Des alertes ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [640, 300]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "text": "🚨 *ALERTE BOYAH GROUP*\n\n={{ $('Analyser Alertes').item.json.response }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "name": "Envoyer Alerte",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [860, 220],
+      "credentials": {
+        "telegramApi": { "id": "TELEGRAM_CREDENTIAL_ID", "name": "Boyah Bot" }
+      }
+    }
+  ],
+  "connections": {
+    "Toutes les 4h": {
+      "main": [[{ "node": "Analyser Alertes", "type": "main", "index": 0 }]]
+    },
+    "Analyser Alertes": {
+      "main": [[{ "node": "Des alertes ?", "type": "main", "index": 0 }]]
+    },
+    "Des alertes ?": {
+      "main": [
+        [{ "node": "Envoyer Alerte", "type": "main", "index": 0 }],
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "notes": "Surveille les anomalies toutes les 4h. N'envoie rien si tout va bien (RAS). Envoie une alerte si problème détecté."
+}

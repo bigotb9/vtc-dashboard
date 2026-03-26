@@ -44,24 +44,27 @@ export default function KpiCards() {
 
   useEffect(() => {
     const fetchKpi = async () => {
-      const [caJourRes, caMoisRes, caTotalRes, depensesRes, vehRes, chauffRes] = await Promise.all([
-        supabase.from("vue_ca_journalier").select("chiffre_affaire").order("date", { ascending: false }).limit(1).single(),
+      const today    = new Date().toISOString().split("T")[0]
+      const tomorrow = new Date(Date.now() + 86400000).toISOString().split("T")[0]
+
+      const [caJourRes, caMoisRes, depensesRes, vehRes, chauffRes] = await Promise.all([
+        supabase.from("recettes_wave").select('"Montant net"').gte("Horodatage", today).lt("Horodatage", tomorrow),
         supabase.from("vue_ca_mensuel").select("chiffre_affaire").order("annee", { ascending: false }).order("mois", { ascending: false }).limit(1).single(),
-        supabase.from("vue_ca_journalier").select("chiffre_affaire"),
         supabase.from("vue_depenses_categories").select("total_depenses"),
         supabase.from("vehicules").select("*", { count: "exact", head: true }),
         supabase.from("chauffeurs").select("*", { count: "exact", head: true }),
       ])
 
-      const totalCA = (caTotalRes.data || []).reduce((s, r) => s + Number(r.chiffre_affaire || 0), 0)
+      const caJour   = (caJourRes.data || []).reduce((s, r) => s + Number(r["Montant net"] || 0), 0)
       const totalDep = (depensesRes.data || []).reduce((s, r) => s + Number(r.total_depenses || 0), 0)
+      const caMois   = caMoisRes.data?.chiffre_affaire || 0
 
       setKpi({
-        caTotal:       totalCA,
+        caTotal:       caMois,
         depensesTotal: totalDep,
-        profit:        totalCA - totalDep,
-        caJour:        caJourRes.data?.chiffre_affaire  || 0,
-        caMois:        caMoisRes.data?.chiffre_affaire  || 0,
+        profit:        caMois - totalDep,
+        caJour,
+        caMois,
         vehicules:     vehRes.count   || 0,
         chauffeurs:    chauffRes.count || 0,
       })

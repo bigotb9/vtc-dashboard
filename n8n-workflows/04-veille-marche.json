@@ -1,0 +1,61 @@
+{
+  "name": "04 – BOYA Veille Marché (Dimanche 9h)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "cronExpression", "expression": "0 9 * * 0" }]
+        }
+      },
+      "name": "Chaque dimanche à 9h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.NEXTJS_URL }}/api/agent/process",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "Content-Type", "value": "application/json" }]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "body": "={\n  \"type\": \"market_research\",\n  \"chat_id\": \"{{ $env.TELEGRAM_CHAT_ID }}\"\n}",
+        "options": { "timeout": 180000 }
+      },
+      "name": "Générer Veille Marché",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "text": "🌍 *VEILLE MARCHÉ HEBDOMADAIRE*\n_Boyah Group – Semaine du {{ new Date().toLocaleDateString('fr-FR') }}_\n\n={{ $json.response }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "name": "Envoyer Veille",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [640, 300],
+      "credentials": {
+        "telegramApi": { "id": "TELEGRAM_CREDENTIAL_ID", "name": "Boyah Bot" }
+      }
+    }
+  ],
+  "connections": {
+    "Chaque dimanche à 9h": {
+      "main": [[{ "node": "Générer Veille Marché", "type": "main", "index": 0 }]]
+    },
+    "Générer Veille Marché": {
+      "main": [[{ "node": "Envoyer Veille", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "notes": "Veille marché VTC Côte d'Ivoire + Afrique de l'Ouest envoyée chaque dimanche matin."
+}

@@ -1,0 +1,287 @@
+import { NextRequest, NextResponse } from "next/server"
+import Anthropic from "@anthropic-ai/sdk"
+import { createClient } from "@supabase/supabase-js"
+
+const sb = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
+
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+
+// ── Personnalité et rôle de l'agent ──────────────────────────────────────────
+const SYSTEM_PROMPT = `Tu es BOYA, l'assistant IA stratégique de Boyah Group, entreprise de VTC en Côte d'Ivoire.
+
+Tu as accès en temps réel à toutes les données de l'entreprise et tu dois les analyser intelligemment.
+
+🎯 TES MISSIONS :
+• Analyser les performances financières et opérationnelles
+• Détecter les anomalies, tendances et opportunités
+• Faire des recommandations stratégiques concrètes et chiffrées
+• Surveiller le marché VTC en Côte d'Ivoire et en Afrique de l'Ouest
+• Mémoriser le contexte de l'entreprise pour un suivi continu
+
+🌍 TON CONTEXTE MARCHÉ :
+• Abidjan : marché VTC dominé par Yango, concurrence InDriver et Bolt en croissance
+• Économie ivoirienne : classe moyenne en expansion, usage mobile fort
+• Saisonnalité : pics en fêtes (Noël, Tabaski), basse saison juillet-août
+• Réglementation : secteur peu régulé mais en évolution
+• Commission Boyah Transport : 2,5% sur chaque course Yango
+
+💾 MÉMORISATION :
+Quand tu identifies un fait important à retenir pour les prochaines conversations, inclus-le en fin de réponse dans ce format exact (ne l'affiche pas à l'utilisateur, c'est une balise système) :
+[MEM]categorie|cle_unique|valeur|importance_1_10[/MEM]
+
+Catégories : entreprise | marche | decision | chauffeur | vehicule | preference | kpi
+
+Exemples :
+[MEM]decision|objectif_ca_2025|Objectif CA annuel fixé à 50M FCFA|9[/MEM]
+[MEM]preference|format_rapport|L'utilisateur préfère les rapports concis avec bullet points|7[/MEM]
+
+🗣️ STYLE :
+• Réponds toujours en français
+• Utilise des emojis pour structurer (Telegram)
+• Sois direct, précis, orienté action
+• Maximum 600 mots sauf si analyse complète demandée
+• Commence chaque réponse par une phrase d'accroche percutante`
+
+type ConvMessage = { role: "user" | "assistant"; content: string }
+
+// ── Agrégation des données ────────────────────────────────────────────────────
+async function fetchContext() {
+  const today       = new Date().toISOString().slice(0, 10)
+  const monthPrefix = new Date().toISOString().slice(0, 7)
+  const weekAgo     = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+
+  const [
+    { data: chauffeurs },
+    { data: vehicules },
+    { data: recettes },
+    { data: depenses },
+    { data: caJour },
+    { data: caMois },
+    { data: classement },
+    { data: commandesRaw },
+    { data: memory },
+  ] = await Promise.all([
+    sb.from("vue_chauffeurs_vehicules").select("*"),
+    sb.from("vue_dashboard_vehicules").select("*"),
+    sb.from("recettes_wave").select("*").order("Horodatage", { ascending: false }).limit(100),
+    sb.from("vue_depenses_categories").select("*"),
+    sb.from("vue_ca_journalier").select("*").order("date", { ascending: false }).limit(30),
+    sb.from("vue_ca_mensuel").select("*").order("annee", { ascending: false }).order("mois", { ascending: false }).limit(12),
+    sb.from("classement_chauffeurs").select("*").order("ca", { ascending: false }),
+    sb.from("commandes_yango").select("raw").order("created_at", { ascending: false }).limit(500),
+    sb.from("agent_memory").select("*").order("importance", { ascending: false }).limit(40),
+  ])
+
+  const commandes = (commandesRaw || []).map(r => r.raw as Record<string, string>)
+  const cmdComplete = commandes.filter(o => o?.status === "complete")
+  const cmdRevTotal = cmdComplete.reduce((s, o) => s + parseFloat(o.price || "0"), 0)
+  const cmdRevMonth = cmdComplete.filter(o => o.created_at?.startsWith(monthPrefix)).reduce((s, o) => s + parseFloat(o.price || "0"), 0)
+  const cmdRevWeek  = cmdComplete.filter(o => (o.created_at?.slice(0, 10) || "") >= weekAgo).reduce((s, o) => s + parseFloat(o.price || "0"), 0)
+  const cmdRevToday = cmdComplete.filter(o => o.created_at?.startsWith(today)).reduce((s, o) => s + parseFloat(o.price || "0"), 0)
+
+  const caTotal     = (caJour || []).reduce((s, r) => s + Number(r.chiffre_affaire || 0), 0)
+  const depTotal    = (depenses || []).reduce((s, r) => s + Number(r.total_depenses || 0), 0)
+  const caAujTotal  = (recettes || []).filter(r => r.Horodatage?.startsWith(today)).reduce((s, r) => s + Number(r["Montant net"] || 0), 0)
+
+  return {
+    date: today,
+    heure: new Date().toLocaleTimeString("fr-FR"),
+
+    flotte_principale: {
+      vehicules_total:   vehicules?.length || 0,
+      vehicules_actifs:  vehicules?.filter(v => v.statut === "ACTIF").length || 0,
+      chauffeurs_total:  chauffeurs?.length || 0,
+      chauffeurs_actifs: chauffeurs?.filter(c => c.actif).length || 0,
+      ca_aujourd_hui_fcfa:  caAujTotal,
+      ca_30j_fcfa:          caTotal,
+      depenses_totales_fcfa: depTotal,
+      profit_net_fcfa:       caTotal - depTotal,
+      marge_pct:             caTotal > 0 ? ((caTotal - depTotal) / caTotal * 100).toFixed(1) : "0",
+      top5_chauffeurs:       classement?.slice(0, 5).map(c => ({ nom: c.nom, ca_fcfa: c.ca, courses: c.nb_courses })) || [],
+      evolution_ca_mensuel:  caMois?.slice(0, 6).map(m => ({ periode: `${m.mois}/${m.annee}`, ca: m.chiffre_affaire })) || [],
+      depenses_par_cat:      depenses?.map(d => ({ cat: d.categorie, montant: d.total_depenses })) || [],
+    },
+
+    boyah_transport_yango: {
+      commandes_total:       commandes.length,
+      commandes_completes:   cmdComplete.length,
+      taux_completion_pct:   commandes.length > 0 ? (cmdComplete.length / commandes.length * 100).toFixed(1) : "0",
+      revenu_total_fcfa:     cmdRevTotal,
+      revenu_ce_mois_fcfa:   cmdRevMonth,
+      revenu_cette_semaine:  cmdRevWeek,
+      revenu_aujourd_hui:    cmdRevToday,
+      commission_25pct_total: cmdRevTotal * 0.025,
+      commission_ce_mois:     cmdRevMonth * 0.025,
+      panier_moyen_fcfa:     cmdComplete.length > 0 ? (cmdRevTotal / cmdComplete.length).toFixed(0) : "0",
+    },
+
+    memoire_agent: (memory || [])
+      .map(m => `• [${m.categorie.toUpperCase()}] ${m.cle}: ${m.valeur}`)
+      .join("\n") || "Pas encore de mémoire accumulée",
+  }
+}
+
+// ── Extraction et sauvegarde des mémoires ────────────────────────────────────
+async function extractAndSaveMemory(text: string) {
+  const memRegex = /\[MEM\]([\s\S]*?)\[\/MEM\]/g
+  const matches: RegExpExecArray[] = []
+  let m: RegExpExecArray | null
+  while ((m = memRegex.exec(text)) !== null) matches.push(m)
+  for (const match of matches) {
+    const parts = match[1].split("|")
+    if (parts.length >= 3) {
+      await sb.from("agent_memory").upsert({
+        categorie:  parts[0]?.trim() || "general",
+        cle:        parts[1]?.trim() || `mem_${Date.now()}`,
+        valeur:     parts[2]?.trim(),
+        importance: parseInt(parts[3]?.trim() || "5"),
+      }, { onConflict: "cle" })
+    }
+  }
+  // Retourne le texte sans les balises mémoire
+  return text.replace(/\[MEM\][\s\S]*?\[\/MEM\]/g, "").trim()
+}
+
+// ── Handler Telegram commands ─────────────────────────────────────────────────
+function getMessageType(text: string): string {
+  if (text?.startsWith("/rapport"))  return "daily_report"
+  if (text?.startsWith("/alerte"))   return "alerts"
+  if (text?.startsWith("/marche"))   return "market_research"
+  if (text?.startsWith("/memoire"))  return "show_memory"
+  return "conversation"
+}
+
+// ── Route principale ──────────────────────────────────────────────────────────
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json()
+    const {
+      message = "",
+      chat_id,
+      telegram_user_id,
+      type: forcedType,
+    } = body
+
+    const type = forcedType || getMessageType(message)
+
+    // Commande /memoire : affichage direct
+    if (type === "show_memory") {
+      const { data: mem } = await sb.from("agent_memory").select("*").order("importance", { ascending: false }).limit(30)
+      const text = mem && mem.length > 0
+        ? `🧠 *Mémoire de BOYA* (${mem.length} entrées)\n\n` + mem.map(m => `• [${m.categorie}] *${m.cle}*\n  ${m.valeur} _(priorité ${m.importance})_`).join("\n\n")
+        : "🧠 Ma mémoire est encore vide. Commence à me parler de ton entreprise !"
+      return NextResponse.json({ ok: true, response: text, type })
+    }
+
+    // Fetch context + conversation history
+    const [context, { data: recentConvs }] = await Promise.all([
+      fetchContext(),
+      sb.from("agent_conversations")
+        .select("role, content")
+        .eq("telegram_chat_id", chat_id || "system")
+        .order("created_at", { ascending: false })
+        .limit(12),
+    ])
+
+    const history: ConvMessage[] = (recentConvs || []).reverse().map(c => ({
+      role: c.role as "user" | "assistant",
+      content: c.content,
+    }))
+
+    // Construction du prompt selon le type
+    let userContent = ""
+
+    if (type === "daily_report") {
+      userContent = `📊 Génère le rapport matinal complet de Boyah Group pour le ${context.date}.
+
+Inclus :
+1. Résumé exécutif de la situation (hier + tendances)
+2. KPIs clés avec comparatifs
+3. Points d'attention prioritaires du jour
+4. 1 action concrète à faire aujourd'hui
+5. Météo business (🟢 bien / 🟡 attention / 🔴 critique)
+
+DONNÉES TEMPS RÉEL :
+${JSON.stringify(context, null, 2)}`
+
+    } else if (type === "alerts") {
+      userContent = `🔍 Analyse les données et identifie UNIQUEMENT les anomalies critiques.
+
+Critères d'alerte : CA aujourd'hui < moyenne, taux annulation > 30%, vehicules en retard paiement, profit négatif.
+
+Si aucune anomalie → réponds exactement "RAS" (rien à signaler).
+Sinon → liste les alertes avec urgence et action immédiate.
+
+DONNÉES :
+${JSON.stringify(context, null, 2)}`
+
+    } else if (type === "market_research") {
+      userContent = `🌍 Réalise la veille marché hebdomadaire de Boyah Group.
+
+Analyse :
+1. Tendances marché VTC Côte d'Ivoire (Abidjan) basées sur tes connaissances
+2. Mouvements concurrents (Yango, InDriver, Bolt)
+3. Opportunités de croissance identifiées
+4. Menaces et risques à surveiller
+5. Recommandations stratégiques basées sur nos données actuelles
+
+DONNÉES ENTREPRISE :
+${JSON.stringify(context, null, 2)}`
+
+    } else {
+      userContent = `${message}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 DONNÉES TEMPS RÉEL BOYAH GROUP
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${JSON.stringify(context, null, 2)}`
+    }
+
+    // Call Claude Opus
+    const claudeResponse = await anthropic.messages.create({
+      model:      "claude-opus-4-6",
+      max_tokens: 2048,
+      system:     SYSTEM_PROMPT,
+      messages:   [...history, { role: "user", content: userContent }],
+    })
+
+    const rawResponse = claudeResponse.content.find(b => b.type === "text")?.text || "Je n'ai pas pu générer une réponse."
+
+    // Extraire mémoires + nettoyer le texte
+    const cleanResponse = await extractAndSaveMemory(rawResponse)
+
+    // Sauvegardes asynchrones (fire-and-forget)
+    const chatId = chat_id || "system"
+    Promise.all([
+      // Sauvegarder la conversation
+      type === "conversation"
+        ? sb.from("agent_conversations").insert([
+            { telegram_chat_id: chatId, telegram_user_id, role: "user",      content: message },
+            { telegram_chat_id: chatId, telegram_user_id, role: "assistant", content: cleanResponse },
+          ])
+        : Promise.resolve(),
+
+      // Archiver les analyses automatiques
+      type !== "conversation"
+        ? sb.from("agent_analyses").insert({
+            type,
+            titre:   `${type === "daily_report" ? "Rapport" : type === "alerts" ? "Alertes" : "Veille marché"} – ${context.date}`,
+            contenu: cleanResponse,
+            donnees: context,
+          })
+        : Promise.resolve(),
+    ]).catch(err => console.error("[agent] save error:", err))
+
+    return NextResponse.json({ ok: true, response: cleanResponse, type })
+
+  } catch (err) {
+    console.error("[agent/process]", err)
+    return NextResponse.json(
+      { ok: false, error: (err as Error).message },
+      { status: 500 }
+    )
+  }
+}

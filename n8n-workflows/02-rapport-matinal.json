@@ -1,0 +1,61 @@
+{
+  "name": "02 – BOYA Rapport Matinal (7h)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "cronExpression", "expression": "0 7 * * *" }]
+        }
+      },
+      "name": "Chaque jour à 7h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.NEXTJS_URL }}/api/agent/process",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "Content-Type", "value": "application/json" }]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "body": "={\n  \"type\": \"daily_report\",\n  \"chat_id\": \"{{ $env.TELEGRAM_CHAT_ID }}\"\n}",
+        "options": { "timeout": 120000 }
+      },
+      "name": "Générer Rapport",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "text": "🌅 *RAPPORT MATINAL BOYAH GROUP*\n_{{ new Date().toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long'}) }}_\n\n={{ $json.response }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "name": "Envoyer Rapport",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [640, 300],
+      "credentials": {
+        "telegramApi": { "id": "TELEGRAM_CREDENTIAL_ID", "name": "Boyah Bot" }
+      }
+    }
+  ],
+  "connections": {
+    "Chaque jour à 7h": {
+      "main": [[{ "node": "Générer Rapport", "type": "main", "index": 0 }]]
+    },
+    "Générer Rapport": {
+      "main": [[{ "node": "Envoyer Rapport", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "notes": "Rapport matinal automatique envoyé à 7h chaque jour. Variable TELEGRAM_CHAT_ID = ton chat ID Telegram."
+}
