@@ -76,7 +76,8 @@ Contexte marché : Abidjan, Yango/InDriver/Bolt en compétition. Saisonnalité f
 [MEM]categorie|cle_unique|valeur|importance_1_10[/MEM]
 Catégories : boyah_group | boyah_transport | marche | decision | chauffeur | vehicule | preference | kpi
 
-🗣️ STYLE : Français, emojis Telegram, direct, orienté action, max 600 mots sauf analyse complète demandée.`
+🗣️ STYLE : Français, emojis pour structurer, direct, orienté action, max 600 mots sauf analyse complète.
+N'utilise PAS de Markdown (**gras**, ##titres, _italique_) — utilise uniquement des emojis et des tirets pour structurer.`
 
 type ConvMessage = { role: "user" | "assistant"; content: string }
 
@@ -156,6 +157,22 @@ async function fetchContext() {
       .map(m => `• [${m.categorie.toUpperCase()}] ${m.cle}: ${m.valeur}`)
       .join("\n") || "Pas encore de mémoire accumulée",
   }
+}
+
+// ── Nettoyage Markdown pour Telegram (plain text) ────────────────────────────
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/#{1,6}\s*/g, "")          // ## titres
+    .replace(/\*\*(.+?)\*\*/g, "$1")    // **gras**
+    .replace(/\*(.+?)\*/g, "$1")        // *italique*
+    .replace(/__(.+?)__/g, "$1")        // __souligné__
+    .replace(/_(.+?)_/g, "$1")          // _italique_
+    .replace(/`{3}[\s\S]*?`{3}/g, "")   // ```code block```
+    .replace(/`(.+?)`/g, "$1")          // `code inline`
+    .replace(/\[(.+?)\]\(.+?\)/g, "$1") // [liens](url)
+    .replace(/^[-*]\s/gm, "• ")         // listes - ou *
+    .replace(/\n{3,}/g, "\n\n")         // trop de sauts de ligne
+    .trim()
 }
 
 // ── Extraction et sauvegarde des mémoires ────────────────────────────────────
@@ -369,13 +386,13 @@ ${webContext ? `\n🌐 RÉSULTATS DE RECHERCHE WEB EN TEMPS RÉEL :\n${webContex
 
     const rawResponse = claudeResponse.content.find(b => b.type === "text")?.text || "Je n'ai pas pu générer une réponse."
 
-    // Extraire mémoires + nettoyer le texte
-    let cleanResponse = await extractAndSaveMemory(rawResponse)
+    // Extraire mémoires + nettoyer le texte + strip Markdown
+    let cleanResponse = stripMarkdown(await extractAndSaveMemory(rawResponse))
 
     // Troncature sécurité Telegram (max 4096 chars)
     const TELEGRAM_LIMIT = 3800
     if (cleanResponse.length > TELEGRAM_LIMIT) {
-      cleanResponse = cleanResponse.slice(0, TELEGRAM_LIMIT) + "\n\n_(message tronqué — réponse trop longue)_"
+      cleanResponse = cleanResponse.slice(0, TELEGRAM_LIMIT) + "\n\n(message tronqué — réponse trop longue)"
     }
 
     // Sauvegardes asynchrones (fire-and-forget)
