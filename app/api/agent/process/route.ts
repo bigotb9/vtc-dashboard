@@ -187,26 +187,21 @@ function getMessageType(text: string): string {
   if (t.startsWith("/marche"))   return "market_research"
   if (t.startsWith("/memoire"))  return "show_memory"
 
-  // Langage naturel — rapport / bilan général
-  if (/rapport\s*(complet|global|général|journalier|du jour|de la journée|matinal|matin)/.test(t) ||
-      /bilan\s*(du jour|journalier|complet|global)/.test(t) ||
-      /comment\s*(ça va|va|se passe)\s*(aujourd'hui|ce matin|la journée|les affaires)/.test(t)) {
-    return "daily_report"
-  }
+  // Langage naturel — marché (en priorité, avant rapport)
+  const marcheWords = ["marche", "marché", "concurrent", "concurrence", "veille", "indriver", "bolt"]
+  const rapportWords = ["rapport", "bilan", "analyse", "etude", "etat"]
+  if (marcheWords.some(w => t.includes(w)) && rapportWords.some(w => t.includes(w))) return "market_research"
+  if (marcheWords.some(w => t.includes(w)) && t.includes("vtc")) return "market_research"
 
-  // Langage naturel — marché / concurrence
-  if (/rapport\s*(du|de|sur le)\s*marché/.test(t) ||
-      /veille\s*(marché|concurrentielle|concurrence)/.test(t) ||
-      /(analyse|étude|état)\s*(du|de|sur le)\s*marché/.test(t) ||
-      /(concurrent|concurrence|yango|indriver|bolt)\s*(analyse|actualité|news|position)/.test(t)) {
-    return "market_research"
-  }
+  // Langage naturel — rapport journalier
+  const joursWords = ["aujourd", "matin", "journee", "journée", "du jour", "hier", "semaine"]
+  if (rapportWords.some(w => t.includes(w)) && joursWords.some(w => t.includes(w))) return "daily_report"
+  if (t.includes("bilan") || (t.includes("rapport") && t.includes("complet"))) return "daily_report"
 
   // Langage naturel — alertes
-  if (/\b(alertes?|anomalie|problème|urgence|attention)\b/.test(t) &&
-      /\b(vérifie|check|analyse|vois|regarde|montre)\b/.test(t)) {
-    return "alerts"
-  }
+  const alerteWords = ["alerte", "anomalie", "probleme", "problème", "urgence"]
+  const checkWords = ["verifi", "check", "regarde", "montre", "vois"]
+  if (alerteWords.some(w => t.includes(w)) && checkWords.some(w => t.includes(w))) return "alerts"
 
   return "conversation"
 }
