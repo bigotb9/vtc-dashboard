@@ -1,30 +1,44 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
+import { randomUUID } from "crypto"
 
-export async function GET() {
+export async function POST(req: NextRequest) {
   try {
-    const response = await fetch(process.env.YANGO_WORK_RULES_URL!, {
-      method: "GET",
+    const body = await req.json()
+
+    const response = await fetch(process.env.YANGO_CREATE_DRIVER_URL!, {
+      method: "POST",
       headers: {
-        "X-API-Key": process.env.WORK_RULE_API_KEY!,
-        "X-Client-ID": process.env.CLID!,
-        "X-Park-ID": process.env.ID_DU_PARTENAIRE!,
+        "Content-Type":        "application/json",
+        "X-API-Key":           process.env.YANGO_CREATE_DRIVER_API_KEY!,
+        "X-Client-ID":         process.env.CLID!,
+        "X-Park-ID":           process.env.ID_DU_PARTENAIRE!,
+        "X-Idempotency-Token": randomUUID(),
       },
+      body: JSON.stringify(body),
     })
 
-    const data = await response.json()
-
-    console.log("WORK RULES RAW:", data) // 🔥 DEBUG
-
-    if (!response.ok) {
-      return NextResponse.json({ error: data }, { status: response.status })
+    let data: Record<string, unknown>
+    try {
+      data = await response.json()
+    } catch {
+      return NextResponse.json(
+        { success: false, error: `Réponse invalide de l'API Yango (HTTP ${response.status})` },
+        { status: response.status }
+      )
     }
 
-    const workRules = data?.work_rules || data?.items || data?.rules || []
+    if (!response.ok) {
+      return NextResponse.json(
+        { success: false, error: (data?.message as string) || JSON.stringify(data) },
+        { status: response.status }
+      )
+    }
 
-    return NextResponse.json(workRules)
+    return NextResponse.json({ success: true, driver_id: data.id ?? data.driver_profile_id })
   } catch (error) {
+    console.error("[create-driver]", error)
     return NextResponse.json(
-      { error: "Erreur récupération work rules" },
+      { success: false, error: `Erreur serveur : ${(error as Error).message}` },
       { status: 500 }
     )
   }
