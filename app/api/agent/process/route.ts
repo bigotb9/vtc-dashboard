@@ -69,12 +69,15 @@ Exemples :
 [MEM]decision|objectif_ca_2025|Objectif CA annuel fixé à 50M FCFA|9[/MEM]
 [MEM]preference|format_rapport|L'utilisateur préfère les rapports concis avec bullet points|7[/MEM]
 
+🚀 RÈGLE ABSOLUE D'EXÉCUTION :
+Quand l'utilisateur demande une tâche précise (rapport, analyse, point marché, bilan, veille, performance, etc.), EXÉCUTE-LA IMMÉDIATEMENT sans aucune introduction ni salutation. Va droit au contenu. NE commence JAMAIS par "Bonjour", "Boss", un menu de commandes, ou une présentation de tes capacités.
+
 🗣️ STYLE :
 • Réponds toujours en français
 • Utilise des emojis pour structurer (Telegram)
 • Sois direct, précis, orienté action
 • Maximum 600 mots sauf si analyse complète demandée
-• Commence chaque réponse par une phrase d'accroche percutante`
+• Commence directement par le contenu demandé, jamais par une salutation`
 
 type ConvMessage = { role: "user" | "assistant"; content: string }
 
@@ -187,21 +190,20 @@ function getMessageType(text: string): string {
   if (t.startsWith("/marche"))   return "market_research"
   if (t.startsWith("/memoire"))  return "show_memory"
 
-  // Langage naturel — marché (en priorité, avant rapport)
-  const marcheWords = ["marche", "marché", "concurrent", "concurrence", "veille", "indriver", "bolt"]
-  const rapportWords = ["rapport", "bilan", "analyse", "etude", "etat"]
-  if (marcheWords.some(w => t.includes(w)) && rapportWords.some(w => t.includes(w))) return "market_research"
-  if (marcheWords.some(w => t.includes(w)) && t.includes("vtc")) return "market_research"
+  const marcheWords  = ["marche", "march", "concurrent", "concurrence", "veille", "indriver", "bolt", "secteur vtc", "vtc abidjan"]
+  const actionWords  = ["rapport", "bilan", "analyse", "etude", "etat", "point", "resume", "synthese", "overview", "fais", "donne", "montre", "fait"]
+  const joursWords   = ["aujourd", "matin", "journee", "du jour", "hier", "semaine", "ce soir", "performance"]
+  const alerteWords  = ["alerte", "anomalie", "probleme", "urgence"]
 
-  // Langage naturel — rapport journalier
-  const joursWords = ["aujourd", "matin", "journee", "journée", "du jour", "hier", "semaine"]
-  if (rapportWords.some(w => t.includes(w)) && joursWords.some(w => t.includes(w))) return "daily_report"
-  if (t.includes("bilan") || (t.includes("rapport") && t.includes("complet"))) return "daily_report"
+  // Marché : un mot marché + un mot action OU juste "marché vtc"
+  if (marcheWords.some(w => t.includes(w))) return "market_research"
 
-  // Langage naturel — alertes
-  const alerteWords = ["alerte", "anomalie", "probleme", "problème", "urgence"]
-  const checkWords = ["verifi", "check", "regarde", "montre", "vois"]
-  if (alerteWords.some(w => t.includes(w)) && checkWords.some(w => t.includes(w))) return "alerts"
+  // Rapport journalier : action + jour
+  if (actionWords.some(w => t.includes(w)) && joursWords.some(w => t.includes(w))) return "daily_report"
+  if (t.includes("bilan") || t.includes("rapport complet") || t.includes("rapport global")) return "daily_report"
+
+  // Alertes
+  if (alerteWords.some(w => t.includes(w))) return "alerts"
 
   return "conversation"
 }
