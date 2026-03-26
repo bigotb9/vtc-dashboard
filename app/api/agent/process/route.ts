@@ -338,10 +338,13 @@ ${webContext ? `\n🌐 RÉSULTATS DE RECHERCHE WEB EN TEMPS RÉEL :\n${webContex
       ? history.slice(0, -1)
       : history
 
+    // Limite de tokens selon le type (Telegram max 4096 chars)
+    const maxTokens = type === "conversation" ? 1024 : 900
+
     // Call Claude Opus
     const claudeResponse = await anthropic.messages.create({
       model:      "claude-opus-4-6",
-      max_tokens: 2048,
+      max_tokens: maxTokens,
       system:     SYSTEM_PROMPT,
       messages:   [...cleanHistory, { role: "user", content: safeContent }],
     })
@@ -349,7 +352,13 @@ ${webContext ? `\n🌐 RÉSULTATS DE RECHERCHE WEB EN TEMPS RÉEL :\n${webContex
     const rawResponse = claudeResponse.content.find(b => b.type === "text")?.text || "Je n'ai pas pu générer une réponse."
 
     // Extraire mémoires + nettoyer le texte
-    const cleanResponse = await extractAndSaveMemory(rawResponse)
+    let cleanResponse = await extractAndSaveMemory(rawResponse)
+
+    // Troncature sécurité Telegram (max 4096 chars)
+    const TELEGRAM_LIMIT = 3800
+    if (cleanResponse.length > TELEGRAM_LIMIT) {
+      cleanResponse = cleanResponse.slice(0, TELEGRAM_LIMIT) + "\n\n_(message tronqué — réponse trop longue)_"
+    }
 
     // Sauvegardes asynchrones (fire-and-forget)
     const chatId = chat_id || "system"
