@@ -60,11 +60,18 @@ BOYAH GROUP (flotte principale) :
 - "dépense" / "charge" = frais opérationnels Boyah Group (carburant, entretien, assurance, etc.)
 - "profit" / "marge" = CA Wave − dépenses totales
 - "sous gestion" / "client" = véhicule appartenant à un propriétaire privé, confié à Boyah Group pour gestion
-  → Le propriétaire = le "client" ; il reçoit un montant mensuel fixe appelé "montant mensuel client"
-  → Logique : si dépenses du véhicule < 50 000 FCFA → Boyah absorbe tout (charge Boyah = dépenses)
-  → Si dépenses > 50 000 FCFA → surplus déduit du montant versé au propriétaire
-  → Net client = montant mensuel − max(0, dépenses − 50 000)
+  → IMPORTANT : C'EST BOYAH QUI VERSE DE L'ARGENT AU CLIENT (pas l'inverse !). Le client est le
+    propriétaire du véhicule, il ne paie RIEN. Boyah exploite son véhicule et lui reverse une part.
+  → "versement client" = sortie d'argent de Boyah VERS le client (jamais l'inverse).
+    Ne jamais dire "le client a versé", "le client doit payer", "recette client".
+  → Le client reçoit chaque mois un montant = montant_mensuel_client − max(0, dépenses véh − 50 000)
+  → Logique charges : si dépenses du véhicule < 50 000 FCFA → Boyah absorbe (charge Boyah = dépenses).
+    Si dépenses > 50 000 FCFA → le surplus est déduit du versement au client (il prend sa part des gros frais).
+  → Net client = montant mensuel − max(0, dépenses − 50 000)   ← c'est ce que Boyah LUI DOIT ce mois-ci
   → Bénéfice Boyah sur ce véhicule = revenu − net client − charge Boyah
+  → Fenêtre de paiement : Boyah verse entre le 5 et le 10 du mois SUIVANT l'exploitation
+    (ex : exploitation mars → versement au client entre 5 et 10 avril).
+    Statuts : deja_verse / a_verser (5-10) / en_retard (après 10) / pas_encore_du (avant 5) / en_cours / futur
 
 BOYAH TRANSPORT (partenariat Yango) :
 - "prestataire" = chauffeur tiers inscrit sur la plateforme Yango VIA Boyah Transport (≠ chauffeur Boyah Group)
@@ -147,9 +154,11 @@ function classifyIntent(text: string): IntentType {
     "sous gestion", "gestion vehicule"]
   if (vehicleTerms.some(w => t.includes(w))) return "vehicle_query"
 
-  // Clients (sous gestion)
+  // Clients (sous gestion) — c'est Boyah qui verse AUX clients
   const clientTerms = ["client", "proprietaire", "sous gestion", "net client", "montant mensuel",
-    "boyah support", "surplus", "charge boyah", "versement client"]
+    "boyah support", "surplus", "charge boyah", "versement client", "verser aux client",
+    "verser client", "je dois au client", "je dois aux client", "paiement client", "payer client",
+    "clients en retard", "client en retard", "rattraper client", "a verser client"]
   if (clientTerms.some(w => t.includes(w))) return "client_query"
 
   // Opérationnel (commandes, courses, Boyah Transport)
@@ -507,31 +516,134 @@ async function fetchContext(intent: IntentType) {
   }
 
   // ── Données clients (sous gestion)
+  //   IMPORTANT : c'est Boyah qui VERSE de l'argent AUX clients (propriétaires des véhicules
+  //   confiés en gestion), jamais l'inverse. Cette fonction calcule pour chaque mois
+  //   des 6 derniers mois : montant dû, montant déjà versé, statut (deja_verse / a_verser /
+  //   en_retard / pas_encore_du / en_cours / futur).
   const fetchClients = async () => {
-    const moisParam = monthPrefix
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_SUPABASE_URL?.replace("supabase.co", "supabase.co")}/api/clients?mois=${moisParam}`
-    ).catch(() => null)
+    const today = new Date()
+    const BOYAH_EXPENSE_CAP = 50_000
 
-    // Fallback : requête directe Supabase si l'API interne n'est pas accessible
-    const { data: clientsRaw } = await sb.from("clients").select("*")
-    const { data: vehsGestion } = await sb.from("vehicules")
-      .select("id_vehicule, immatriculation, montant_mensuel_client, id_client")
-      .eq("sous_gestion", true)
+    // Clients + véhicules sous gestion
+    const [{ data: clientsRaw }, { data: vehsGestion }, { data: versementsRaw }] = await Promise.all([
+      sb.from("clients").select("*"),
+      sb.from("vehicules")
+        .select("id_vehicule, immatriculation, montant_mensuel_client, id_client")
+        .eq("sous_gestion", true),
+      sb.from("versements_clients").select("id_client, mois, montant, date_versement"),
+    ])
 
-    return {
-      nb_clients:      clientsRaw?.length || 0,
-      nb_veh_sous_gestion: vehsGestion?.length || 0,
-      clients: clientsRaw?.map(c => ({
+    // Construire la liste des 6 derniers mois (YYYY-MM)
+    const moisList: string[] = []
+    for (let i = 0; i < 6; i++) {
+      const d = new Date(today.getFullYear(), today.getMonth() - i, 1)
+      moisList.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`)
+    }
+
+    // Pour chaque mois : revenus + dépenses par véhicule
+    type VehMois = { id_vehicule: number; revenu: number; depenses: number }
+    const vehParMois = new Map<string, Map<number, VehMois>>()
+    for (const m of moisList) {
+      const [y, mm] = m.split("-").map(Number)
+      const from = `${m}-01`
+      const to   = new Date(y, mm, 1).toISOString().slice(0, 10)
+      const [{ data: recs }, { data: deps }] = await Promise.all([
+        sb.from("vue_recettes_vehicules")
+          .select(`immatriculation, "Montant net", "Horodatage"`)
+          .gte("Horodatage", from).lt("Horodatage", to),
+        sb.from("depenses_vehicules")
+          .select("id_vehicule, montant, date_depense")
+          .gte("date_depense", from).lt("date_depense", to),
+      ])
+      const map = new Map<number, VehMois>()
+      for (const v of vehsGestion || []) {
+        const revenu = (recs || [])
+          .filter(r => String(r.immatriculation).toLowerCase() === v.immatriculation.toLowerCase())
+          .reduce((s, r) => s + Number((r as Record<string, unknown>)["Montant net"] || 0), 0)
+        const depenses = (deps || [])
+          .filter(d => d.id_vehicule === v.id_vehicule)
+          .reduce((s, d) => s + Number(d.montant || 0), 0)
+        map.set(v.id_vehicule, { id_vehicule: v.id_vehicule, revenu, depenses })
+      }
+      vehParMois.set(m, map)
+    }
+
+    // Index versements par (id_client, mois)
+    const versMap = new Map<string, number>()
+    for (const v of versementsRaw || []) {
+      versMap.set(`${v.id_client}|${v.mois}`, Number(v.montant || 0))
+    }
+
+    // Statut de versement (miroir de app/clients/page.tsx)
+    function statut(mois: string, deja: boolean): string {
+      if (deja) return "deja_verse"
+      const [y, m] = mois.split("-").map(Number)
+      const debutMois  = new Date(y, m - 1, 1)
+      const finMois    = new Date(y, m, 0, 23, 59, 59)
+      const jour5Next  = new Date(y, m, 5)
+      const jour10Next = new Date(y, m, 10, 23, 59, 59)
+      if (today < debutMois)  return "futur"
+      if (today <= finMois)   return "en_cours"
+      if (today < jour5Next)  return "pas_encore_du"
+      if (today <= jour10Next) return "a_verser"
+      return "en_retard"
+    }
+
+    // Agréger par client
+    const clients = (clientsRaw || []).map(c => {
+      const vehsClient = (vehsGestion || []).filter(v => v.id_client === c.id)
+      const mensuelTotal = vehsClient.reduce((s, v) => s + Number(v.montant_mensuel_client || 0), 0)
+
+      // Calcul du dû pour chaque mois
+      const moisDetails = moisList.map(m => {
+        const vehsMois = vehParMois.get(m)!
+        let netDu = 0
+        for (const v of vehsClient) {
+          const vm = vehsMois.get(v.id_vehicule)
+          if (!vm) continue
+          const surplus = Math.max(0, vm.depenses - BOYAH_EXPENSE_CAP)
+          netDu += Math.max(0, Number(v.montant_mensuel_client || 0) - surplus)
+        }
+        const verse = versMap.get(`${c.id}|${m}`) || 0
+        return {
+          mois: m,
+          net_du_au_client:  Math.round(netDu),
+          montant_deja_verse: Math.round(verse),
+          statut: statut(m, verse > 0),
+        }
+      })
+
+      const enRetard = moisDetails.filter(m => m.statut === "en_retard")
+      const aVerser  = moisDetails.filter(m => m.statut === "a_verser")
+
+      return {
         nom: c.nom,
         telephone: c.telephone,
-        nb_vehicules: vehsGestion?.filter(v => v.id_client === c.id).length || 0,
-        montant_mensuel_total: vehsGestion
-          ?.filter(v => v.id_client === c.id)
-          .reduce((s, v) => s + Number(v.montant_mensuel_client || 0), 0) || 0,
-      })) || [],
-      note: `Données mois ${moisParam}. Pour le détail financier complet (revenu/dépenses/net), consulter la page Clients.`,
-      _: res, // kept to avoid unused warning
+        nb_vehicules: vehsClient.length,
+        immatriculations: vehsClient.map(v => v.immatriculation),
+        montant_mensuel_total: mensuelTotal,
+        mois_en_retard: enRetard.length,
+        total_a_rattraper: enRetard.reduce((s, m) => s + m.net_du_au_client, 0),
+        mois_a_verser_maintenant: aVerser.length,
+        total_a_verser_maintenant: aVerser.reduce((s, m) => s + m.net_du_au_client, 0),
+        historique_6_mois: moisDetails,
+      }
+    })
+
+    // Totaux globaux
+    const total_retards  = clients.reduce((s, c) => s + c.total_a_rattraper, 0)
+    const total_imminent = clients.reduce((s, c) => s + c.total_a_verser_maintenant, 0)
+
+    return {
+      note: "C'est Boyah qui verse l'argent AUX clients (propriétaires confiant leur véhicule). " +
+            "Fenêtre de paiement : 5-10 du mois suivant l'exploitation. " +
+            "Jamais de versement DES clients VERS Boyah.",
+      nb_clients:               clientsRaw?.length || 0,
+      nb_veh_sous_gestion:      vehsGestion?.length || 0,
+      total_engagement_mensuel: clients.reduce((s, c) => s + c.montant_mensuel_total, 0),
+      total_retards_cumules:    Math.round(total_retards),
+      total_a_verser_cette_periode: Math.round(total_imminent),
+      clients,
     }
   }
 
@@ -607,9 +719,9 @@ async function fetchContext(intent: IntentType) {
     }
     default: {
       // daily_report, alerts, rapport complet
-      const [fin, drv, veh, trp, paiements, entretiens, completude] = await Promise.all([
+      const [fin, drv, veh, trp, paiements, entretiens, completude, cli] = await Promise.all([
         fetchFinancial(), fetchDrivers(), fetchVehicles(), fetchTransport(),
-        fetchDriverPayments(), fetchEntretiens(), fetchVersementsCompletude(),
+        fetchDriverPayments(), fetchEntretiens(), fetchVersementsCompletude(), fetchClients(),
       ])
       return {
         ...base,
@@ -622,6 +734,16 @@ async function fetchContext(intent: IntentType) {
         completude_versements:     completude,
         entretiens_vehicules:      entretiens,
         boyah_transport:           trp,
+        clients_sous_gestion: {
+          nb:                           cli.nb_clients,
+          nb_veh:                       cli.nb_veh_sous_gestion,
+          total_engagement_mensuel:     cli.total_engagement_mensuel,
+          total_retards_cumules:        cli.total_retards_cumules,      // argent que Boyah DOIT encore aux clients
+          total_a_verser_cette_periode: cli.total_a_verser_cette_periode, // fenêtre 5-10
+          clients_avec_retard:          cli.clients.filter(c => c.mois_en_retard > 0).map(c => ({
+            nom: c.nom, mois_en_retard: c.mois_en_retard, total: c.total_a_rattraper,
+          })),
+        },
       }
     }
   }
@@ -673,7 +795,7 @@ function buildUserContent(intent: IntentType, message: string, context: Record<s
       return `[RAPPORT DIRECT — aucune introduction]\n\n📊 Rapport Boyah Group — ${context.date}\n\nInclus obligatoirement :\n1. Résumé exécutif (état vs hier + tendance)\n2. KPIs clés avec variation mois/mois\n3. Points d'attention du jour (max 3)\n4. 1 action concrète prioritaire\n5. Météo business (🟢 bien / 🟡 attention / 🔴 critique)\n\nDONNÉES :\n${ctxStr}${web}`
 
     case "alerts":
-      return `[ALERTES DIRECTES — pas d'introduction]\n\n🔍 Anomalies critiques uniquement. Seuils :\n- CA aujourd'hui < 70% de la moyenne des 7 derniers jours → alerte\n- Taux annulation Boyah Transport > 30% → alerte\n- Marge < 20% → alerte\n- Profit négatif → critique\n\nSi aucune anomalie → réponds exactement "✅ RAS — aucune anomalie détectée."\nSinon → liste les alertes avec niveau (🟡 / 🔴) et action immédiate.\n\nDONNÉES :\n${ctxStr}`
+      return `[ALERTES DIRECTES — pas d'introduction]\n\n🔍 Anomalies critiques uniquement. Seuils :\n- CA aujourd'hui < 70% de la moyenne des 7 derniers jours → alerte\n- Taux annulation Boyah Transport > 30% → alerte\n- Marge < 20% → alerte\n- Profit négatif → critique\n- Versements AUX clients en retard (Boyah doit au propriétaire, pas l'inverse) → 🔴 critique\n- Fenêtre 5-10 du mois : versements clients à faire cette semaine → 🟡 rappel\n\nSi aucune anomalie → réponds exactement "✅ RAS — aucune anomalie détectée."\nSinon → liste les alertes avec niveau (🟡 / 🔴) et action immédiate.\n\nDONNÉES :\n${ctxStr}`
 
     case "market_research":
       return `[ANALYSE DIRECTE — commence immédiatement]\n\n🌍 Veille marché VTC Abidjan pour Boyah Group.\n\nAnalyse :\n1. Tendances marché VTC Côte d'Ivoire (Abidjan) — utilise les données web\n2. Mouvements concurrents (Yango, InDriver, Bolt) — positionnement actuel\n3. Opportunités concrètes pour Boyah Group vu nos données actuelles\n4. Menaces et risques\n5. 2 recommandations stratégiques actionnables\n\nDONNÉES ENTREPRISE :\n${ctxStr}${web}`
@@ -688,7 +810,7 @@ function buildUserContent(intent: IntentType, message: string, context: Record<s
       return `${message}\n\n🚗 DONNÉES VÉHICULES :\n${ctxStr}`
 
     case "client_query":
-      return `${message}\n\n🤝 DONNÉES CLIENTS (véhicules sous gestion) :\n${ctxStr}\n\nRappel lexique : "net client" = montant mensuel − max(0, dépenses − 50 000 FCFA) ; "charge Boyah" = min(dépenses, 50 000 FCFA)`
+      return `${message}\n\n🤝 DONNÉES CLIENTS (véhicules sous gestion) :\n${ctxStr}\n\nRappel direction de l'argent : C'EST BOYAH QUI VERSE AUX CLIENTS (le client est le propriétaire du véhicule, Boyah l'exploite et lui reverse sa part). Ne jamais dire "le client a versé" ou "le client doit".\n\nLexique : "net client" = ce que Boyah doit au client ce mois = montant mensuel − max(0, dépenses − 50 000 FCFA) ; "charge Boyah" = min(dépenses, 50 000 FCFA). Fenêtre de paiement : 5-10 du mois suivant. Statuts : deja_verse / a_verser / en_retard / pas_encore_du / en_cours / futur.`
 
     case "operational":
       return `${message}\n\n🔄 DONNÉES BOYAH TRANSPORT (Yango) :\n${ctxStr}`
