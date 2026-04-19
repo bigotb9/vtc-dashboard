@@ -2,16 +2,23 @@ import { NextRequest, NextResponse } from "next/server"
 import { supabase } from "@/lib/supabaseClient"
 
 export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json()
 
-  const body = await req.json()
+    if (!body || typeof body !== "object") {
+      return NextResponse.json({ success: false, error: "Corps de requête invalide" }, { status: 400 })
+    }
 
-  const { error } = await supabase
-    .from("recettes_wave")
-    .insert([body])
+    const { error } = await supabase
+      .from("recettes_wave")
+      .insert([body])
 
-  if (error) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 400 })
+    if (error) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 400 })
+    }
+
+    return NextResponse.json({ success: true })
+  } catch (err) {
+    return NextResponse.json({ success: false, error: (err as Error).message }, { status: 500 })
   }
-
-  return NextResponse.json({ success: true })
 }

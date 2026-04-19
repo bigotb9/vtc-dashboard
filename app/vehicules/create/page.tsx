@@ -1,22 +1,25 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabaseClient"
 import {
   ArrowLeft, Camera, Car, Wrench, FileText,
-  AlertCircle, Plus, Hash, User, ScanLine, FlipHorizontal
+  AlertCircle, Plus, Hash, User, ScanLine, FlipHorizontal, UserCheck
 } from "lucide-react"
 import Link from "next/link"
+import { toast } from "@/lib/toast"
 import Image from "next/image"
 
 /* ── helpers ── */
-async function uploadPhoto(file: File): Promise<string> {
-  const ext = file.name.split(".").pop()
-  const name = `vehicule_${Date.now()}.${ext}`
-  const { error } = await supabase.storage.from("vehicules").upload(name, file, { upsert: true })
-  if (error) throw new Error(error.message)
-  return supabase.storage.from("vehicules").getPublicUrl(name).data.publicUrl
+async function uploadPhoto(file: File, bucket = "vehicules"): Promise<string> {
+  const fd = new FormData()
+  fd.append("file", file)
+  fd.append("bucket", bucket)
+  const res  = await fetch("/api/upload", { method: "POST", body: fd })
+  const data = await res.json()
+  if (!data.ok) throw new Error(data.error)
+  return data.url
 }
 
 /* ── sous-composants ── */
@@ -57,6 +60,7 @@ export default function CreateVehicule() {
 
   const [loading, setLoading]       = useState(false)
   const [errorMsg, setErrorMsg]     = useState<string | null>(null)
+  const [clients,  setClients]      = useState<{ id: number; nom: string }[]>([])
   const [photoFile, setPhotoFile]   = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
   const [rectoFile, setRectoFile]   = useState<File | null>(null)
@@ -76,9 +80,19 @@ export default function CreateVehicule() {
     date_expiration_assurance: "",
     date_visite_technique:   "",
     date_expiration_visite:  "",
+    sous_gestion:            false,
+    montant_mensuel_client:  "",
+    id_client:               "",
+    montant_recette_jour:    "",
   })
 
-  const set = (k: keyof typeof form, v: string) =>
+  // Charger les clients pour le select
+  useEffect(() => {
+    supabase.from("clients").select("id, nom").order("nom")
+      .then(({ data }) => setClients(data ?? []))
+  }, [])
+
+  const set = (k: keyof typeof form, v: string | boolean) =>
     setForm(p => ({ ...p, [k]: v }))
 
   const inp = "w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600 rounded-xl px-3.5 py-2.5 text-sm transition focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent focus:bg-white"
@@ -127,6 +141,10 @@ export default function CreateVehicule() {
         date_expiration_assurance: form.date_expiration_assurance  || null,
         date_visite_technique:     form.date_visite_technique       || null,
         date_expiration_visite:    form.date_expiration_visite      || null,
+        sous_gestion:              form.sous_gestion,
+        montant_mensuel_client:    form.sous_gestion && form.montant_mensuel_client !== "" ? Number(form.montant_mensuel_client) : 0,
+        id_client:                 form.sous_gestion && form.id_client !== "" ? Number(form.id_client) : null,
+        montant_recette_jour:      form.montant_recette_jour !== "" ? Number(form.montant_recette_jour) : 0,
         ...(photoUrl ? { photo:              photoUrl } : {}),
         ...(rectoUrl ? { carte_grise_recto:  rectoUrl } : {}),
         ...(versoUrl ? { carte_grise_verso:  versoUrl } : {}),
@@ -135,10 +153,18 @@ export default function CreateVehicule() {
       const res  = await fetch("/api/vehicules/create", { method: "POST", body: JSON.stringify(payload) })
       const data = await res.json()
 
-      if (data.success) router.push("/vehicules")
-      else { setErrorMsg(data.error); setLoading(false) }
+      if (data.success) {
+        toast.success("Véhicule créé avec succès")
+        router.push("/vehicules")
+      } else {
+        toast.error(data.error || "Erreur lors de la création")
+        setErrorMsg(data.error)
+        setLoading(false)
+      }
     } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : "Erreur inconnue")
+      const msg = err instanceof Error ? err.message : "Erreur inconnue"
+      toast.error(msg)
+      setErrorMsg(msg)
       setLoading(false)
     }
   }
@@ -234,10 +260,46 @@ export default function CreateVehicule() {
             </div>
           </div>
 
+          {/* ══ GESTION CLIENT ══ */}
+          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm p-5 space-y-4">
+            <SectionHeader icon={UserCheck} label="Gestion client" color="bg-violet-500" />
+
+            {/* Toggle sous gestion */}
+            <div className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+              <div>
+                <p className="text-sm font-semibold text-gray-800 dark:text-white">Véhicule sous gestion</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Le propriétaire est un client externe — Boyah reverse un montant mensuel</p>
+              </div>
+              <button type="button"
+                onClick={() => set("sous_gestion", !form.sous_gestion)}
+                className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${form.sous_gestion ? "bg-violet-500" : "bg-gray-300 dark:bg-gray-600"}`}>
+                <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${form.sous_gestion ? "translate-x-5" : "translate-x-0.5"}`} />
+              </button>
+            </div>
+
+            {form.sous_gestion && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                <Field label="Client propriétaire">
+                  <select className={inp} value={form.id_client} onChange={e => set("id_client", e.target.value)}>
+                    <option value="">— Sélectionner un client —</option>
+                    {clients.map(c => (
+                      <option key={c.id} value={c.id}>{c.nom}</option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Montant mensuel client (FCFA)">
+                  <input type="number" min={0} placeholder="ex : 200 000" className={inp}
+                    value={form.montant_mensuel_client}
+                    onChange={e => set("montant_mensuel_client", e.target.value)} />
+                </Field>
+              </div>
+            )}
+          </div>
+
           {/* ══ KILOMÉTRAGE ══ */}
           <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm p-5 space-y-5">
-            <SectionHeader icon={Wrench} label="Kilométrage" color="bg-orange-500" />
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <SectionHeader icon={Wrench} label="Kilométrage & Recette" color="bg-orange-500" />
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
 
               <Field label="Kilométrage actuel (km)">
                 <input type="number" min={0} placeholder="0" className={inp}
@@ -247,6 +309,11 @@ export default function CreateVehicule() {
               <Field label="Km à la dernière vidange">
                 <input type="number" min={0} placeholder="0" className={inp}
                   value={form.km_derniere_vidange} onChange={e => set("km_derniere_vidange", e.target.value)} />
+              </Field>
+
+              <Field label="Recette jour (FCFA)">
+                <input type="number" min={0} placeholder="Ex. 22000" className={inp}
+                  value={form.montant_recette_jour} onChange={e => set("montant_recette_jour", e.target.value)} />
               </Field>
 
             </div>

@@ -14,6 +14,10 @@ type Props = {
     date_expiration_assurance: string | null
     date_visite_technique:   string | null
     date_expiration_visite:  string | null
+    date_carte_stationnement:             string | null
+    date_expiration_carte_stationnement:  string | null
+    date_patente:            string | null
+    date_expiration_patente: string | null
   }
 }
 
@@ -32,6 +36,10 @@ export default function VehiculeUpdateDocs({ id, initial }: Props) {
     date_expiration_assurance: initial.date_expiration_assurance     ?? "",
     date_visite_technique:   initial.date_visite_technique           ?? "",
     date_expiration_visite:  initial.date_expiration_visite          ?? "",
+    date_carte_stationnement:            initial.date_carte_stationnement            ?? "",
+    date_expiration_carte_stationnement: initial.date_expiration_carte_stationnement ?? "",
+    date_patente:            initial.date_patente            ?? "",
+    date_expiration_patente: initial.date_expiration_patente ?? "",
   })
 
   const set = (k: keyof typeof form, v: string) =>
@@ -52,6 +60,10 @@ export default function VehiculeUpdateDocs({ id, initial }: Props) {
       date_expiration_assurance: form.date_expiration_assurance || null,
       date_visite_technique:   form.date_visite_technique   || null,
       date_expiration_visite:  form.date_expiration_visite  || null,
+      date_carte_stationnement:            form.date_carte_stationnement            || null,
+      date_expiration_carte_stationnement: form.date_expiration_carte_stationnement || null,
+      date_patente:            form.date_patente            || null,
+      date_expiration_patente: form.date_expiration_patente || null,
     }
 
     const res = await fetch("/api/vehicules/update", {
@@ -127,6 +139,30 @@ export default function VehiculeUpdateDocs({ id, initial }: Props) {
             <label className="text-[12px] font-semibold text-gray-600 dark:text-gray-400">Expiration visite technique</label>
             <input type="date" className={inp}
               value={form.date_expiration_visite} onChange={e => set("date_expiration_visite", e.target.value)} />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[12px] font-semibold text-gray-600 dark:text-gray-400">Date carte de stationnement</label>
+            <input type="date" className={inp}
+              value={form.date_carte_stationnement} onChange={e => set("date_carte_stationnement", e.target.value)} />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[12px] font-semibold text-gray-600 dark:text-gray-400">Expiration carte de stationnement</label>
+            <input type="date" className={inp}
+              value={form.date_expiration_carte_stationnement} onChange={e => set("date_expiration_carte_stationnement", e.target.value)} />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[12px] font-semibold text-gray-600 dark:text-gray-400">Date patente</label>
+            <input type="date" className={inp}
+              value={form.date_patente} onChange={e => set("date_patente", e.target.value)} />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[12px] font-semibold text-gray-600 dark:text-gray-400">Expiration patente</label>
+            <input type="date" className={inp}
+              value={form.date_expiration_patente} onChange={e => set("date_expiration_patente", e.target.value)} />
           </div>
 
         </div>

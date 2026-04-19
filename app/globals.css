@@ -2,17 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── Custom scrollbar ── */
-::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #374151; border-radius: 99px; }
-::-webkit-scrollbar-thumb:hover { background: #6366f1; }
 
 /* ── Base ── */
 html { scroll-behavior: smooth; }
 body {
   background-color: #f1f5f9;
   -webkit-font-smoothing: antialiased;
+  font-family: var(--font-geist), system-ui, sans-serif;
+}
+
+/* Chiffres et montants en monospace Geist */
+.font-numeric {
+  font-family: var(--font-geist-mono), monospace;
+  font-feature-settings: "tnum";
 }
 .dark body { background-color: #080C14; }
 
@@ -33,4 +35,35 @@ body {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-.animate-in { animation: fadeSlideIn 0.2s ease forwards; }
+.animate-in { animation: fadeSlideIn 0.25s ease forwards; }
+
+@keyframes shimmer {
+  100% { transform: translateX(100%); }
+}
+
+/* ── Transitions globales fluides (dark/light) ── */
+*, *::before, *::after {
+  transition-property: background-color, border-color, color;
+  transition-duration: 150ms;
+  transition-timing-function: ease;
+}
+
+/* Exclure les éléments qui ne doivent pas transitionner */
+svg, img, canvas {
+  transition: none !important;
+}
+
+/* ── Focus visible accessible ── */
+:focus-visible {
+  outline: 2px solid #6366f1;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* ── Scrollbar raffinée ── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: #6366f1; }
+.dark ::-webkit-scrollbar-thumb { background: #1E2D45; }
+.dark ::-webkit-scrollbar-thumb:hover { background: #6366f1; }

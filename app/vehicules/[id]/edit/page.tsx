@@ -5,18 +5,20 @@ import { useRouter, useParams } from "next/navigation"
 import { supabase } from "@/lib/supabaseClient"
 import {
   ArrowLeft, Camera, Car, Wrench, FileText,
-  CheckCircle, AlertCircle, User, Hash, Loader2, Save
+  CheckCircle, AlertCircle, User, Hash, Loader2, Save, UserCheck
 } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
 
 /* ── helpers ── */
-async function uploadPhoto(file: File): Promise<string> {
-  const ext  = file.name.split(".").pop()
-  const name = `vehicule_${Date.now()}.${ext}`
-  const { error } = await supabase.storage.from("vehicules").upload(name, file, { upsert: true })
-  if (error) throw new Error(error.message)
-  return supabase.storage.from("vehicules").getPublicUrl(name).data.publicUrl
+async function uploadPhoto(file: File, bucket = "vehicules"): Promise<string> {
+  const fd = new FormData()
+  fd.append("file", file)
+  fd.append("bucket", bucket)
+  const res  = await fetch("/api/upload", { method: "POST", body: fd })
+  const data = await res.json()
+  if (!data.ok) throw new Error(data.error)
+  return data.url
 }
 
 function SectionHeader({ icon: Icon, label, color }: {
@@ -107,8 +109,17 @@ export default function EditVehicule() {
     date_expiration_assurance: "",
     date_visite_technique:     "",
     date_expiration_visite:    "",
+    date_carte_stationnement:            "",
+    date_expiration_carte_stationnement: "",
+    date_patente:            "",
+    date_expiration_patente: "",
+    sous_gestion:              false,
+    montant_mensuel_client:    "",
+    id_client:                 "",
+    montant_recette_jour:      "",
   })
-  const set = (k: keyof typeof form, v: string) => setForm(p => ({ ...p, [k]: v }))
+  const [clients, setClients] = useState<{ id: number; nom: string }[]>([])
+  const set = (k: keyof typeof form, v: string | boolean) => setForm(p => ({ ...p, [k]: v }))
 
   // Photos
   const [photoUrl,     setPhotoUrl]     = useState<string | null>(null)
@@ -124,6 +135,11 @@ export default function EditVehicule() {
   const [versoPreview, setVersoPreview] = useState<string | null>(null)
 
   /* ── chargement ── */
+  useEffect(() => {
+    supabase.from("clients").select("id, nom").order("nom")
+      .then(({ data }) => setClients(data ?? []))
+  }, [])
+
   useEffect(() => {
     const load = async () => {
       try {
@@ -141,6 +157,14 @@ export default function EditVehicule() {
           date_expiration_assurance: data.date_expiration_assurance ?? "",
           date_visite_technique:     data.date_visite_technique     ?? "",
           date_expiration_visite:    data.date_expiration_visite    ?? "",
+          date_carte_stationnement:            data.date_carte_stationnement            ?? "",
+          date_expiration_carte_stationnement: data.date_expiration_carte_stationnement ?? "",
+          date_patente:            data.date_patente            ?? "",
+          date_expiration_patente: data.date_expiration_patente ?? "",
+          sous_gestion:              data.sous_gestion              ?? false,
+          montant_mensuel_client:    data.montant_mensuel_client?.toString() ?? "",
+          id_client:                 data.id_client?.toString()     ?? "",
+          montant_recette_jour:      data.montant_recette_jour?.toString() ?? "",
         })
         setPhotoUrl(data.photo ?? null);              setPhotoPreview(data.photo ?? null)
         setRectoUrl(data.carte_grise_recto ?? null);  setRectoPreview(data.carte_grise_recto ?? null)
@@ -188,6 +212,14 @@ export default function EditVehicule() {
           date_expiration_assurance: form.date_expiration_assurance  || null,
           date_visite_technique:     form.date_visite_technique       || null,
           date_expiration_visite:    form.date_expiration_visite      || null,
+          date_carte_stationnement:            form.date_carte_stationnement            || null,
+          date_expiration_carte_stationnement: form.date_expiration_carte_stationnement || null,
+          date_patente:            form.date_patente            || null,
+          date_expiration_patente: form.date_expiration_patente || null,
+          sous_gestion:              form.sous_gestion,
+          montant_mensuel_client:    form.sous_gestion && form.montant_mensuel_client !== "" ? Number(form.montant_mensuel_client) : 0,
+          id_client:                 form.sous_gestion && form.id_client !== "" ? Number(form.id_client) : null,
+          montant_recette_jour:      form.montant_recette_jour !== "" ? Number(form.montant_recette_jour) : 0,
           photo:                     finalPhoto,
           carte_grise_recto:         finalRecto,
           carte_grise_verso:         finalVerso,
@@ -284,10 +316,45 @@ export default function EditVehicule() {
         </div>
       </div>
 
+      {/* ── GESTION CLIENT ── */}
+      <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm p-5 space-y-4">
+        <SectionHeader icon={UserCheck} label="Gestion client" color="bg-violet-500" />
+
+        <div className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+          <div>
+            <p className="text-sm font-semibold text-gray-800 dark:text-white">Véhicule sous gestion</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Le propriétaire est un client externe — Boyah reverse un montant mensuel</p>
+          </div>
+          <button type="button"
+            onClick={() => set("sous_gestion", !form.sous_gestion)}
+            className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${form.sous_gestion ? "bg-violet-500" : "bg-gray-300 dark:bg-gray-600"}`}>
+            <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${form.sous_gestion ? "translate-x-5" : "translate-x-0.5"}`} />
+          </button>
+        </div>
+
+        {form.sous_gestion && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="Client propriétaire">
+              <select className={inp} value={form.id_client} onChange={e => set("id_client", e.target.value)}>
+                <option value="">— Sélectionner un client —</option>
+                {clients.map(c => (
+                  <option key={c.id} value={c.id}>{c.nom}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Montant mensuel client (FCFA)">
+              <input type="number" min={0} placeholder="ex : 200 000" className={inp}
+                value={form.montant_mensuel_client}
+                onChange={e => set("montant_mensuel_client", e.target.value)} />
+            </Field>
+          </div>
+        )}
+      </div>
+
       {/* ── KILOMÉTRAGE ── */}
       <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm p-5 space-y-4">
-        <SectionHeader icon={Hash} label="Kilométrage" color="bg-teal-500" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <SectionHeader icon={Hash} label="Kilométrage & Recette" color="bg-teal-500" />
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Field label="Kilométrage actuel">
             <input type="number" min="0" value={form.km_actuel} onChange={e => set("km_actuel", e.target.value)}
               placeholder="Ex. 85000" className={inp} />
@@ -295,6 +362,10 @@ export default function EditVehicule() {
           <Field label="Km à la dernière vidange">
             <input type="number" min="0" value={form.km_derniere_vidange} onChange={e => set("km_derniere_vidange", e.target.value)}
               placeholder="Ex. 80000" className={inp} />
+          </Field>
+          <Field label="Recette jour (FCFA)" hint="Utilisée pour détecter les manquants et insuffisants dans le suivi">
+            <input type="number" min="0" value={form.montant_recette_jour} onChange={e => set("montant_recette_jour", e.target.value)}
+              placeholder="Ex. 22000" className={inp} />
           </Field>
         </div>
       </div>
@@ -317,6 +388,18 @@ export default function EditVehicule() {
           </Field>
           <Field label="Expiration visite technique">
             <input type="date" value={form.date_expiration_visite} onChange={e => set("date_expiration_visite", e.target.value)} className={inp} />
+          </Field>
+          <Field label="Date carte de stationnement">
+            <input type="date" value={form.date_carte_stationnement} onChange={e => set("date_carte_stationnement", e.target.value)} className={inp} />
+          </Field>
+          <Field label="Expiration carte de stationnement">
+            <input type="date" value={form.date_expiration_carte_stationnement} onChange={e => set("date_expiration_carte_stationnement", e.target.value)} className={inp} />
+          </Field>
+          <Field label="Date patente">
+            <input type="date" value={form.date_patente} onChange={e => set("date_patente", e.target.value)} className={inp} />
+          </Field>
+          <Field label="Expiration patente">
+            <input type="date" value={form.date_expiration_patente} onChange={e => set("date_expiration_patente", e.target.value)} className={inp} />
           </Field>
         </div>
       </div>

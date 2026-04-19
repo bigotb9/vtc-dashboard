@@ -24,7 +24,7 @@
         },
         "sendBody": true,
         "contentType": "json",
-        "body": "={\n  \"message\": \"{{ $json.message.text }}\",\n  \"chat_id\": \"{{ $json.message.chat.id }}\",\n  \"telegram_user_id\": \"{{ $json.message.from.id }}\"\n}",
+        "body": "={{ { \"message\": $json.message.text, \"chat_id\": String($json.message.chat.id), \"telegram_user_id\": String($json.message.from.id) } }}",
         "options": {
           "timeout": 120000
         }

@@ -3,6 +3,7 @@
 import { useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabaseClient"
+import { toast } from "@/lib/toast"
 import {
   ArrowLeft, Camera, User, Phone, MessageSquare,
   CheckCircle, AlertCircle, UserPlus, FileText,
@@ -95,13 +96,14 @@ function PhotoZone({ label, sublabel, preview, onSelect, onClear }: {
    HELPERS UPLOAD
 ═══════════════════════════════════ */
 
-async function uploadToStorage(file: File, bucket: string, prefix: string): Promise<string | null> {
-  const ext = file.name.split(".").pop()
-  const fileName = `${prefix}_${Date.now()}.${ext}`
-  const { error } = await supabase.storage.from(bucket).upload(fileName, file, { upsert: true })
-  if (error) throw new Error(error.message)
-  const { data } = supabase.storage.from(bucket).getPublicUrl(fileName)
-  return data.publicUrl
+async function uploadToStorage(file: File, bucket: string): Promise<string | null> {
+  const fd = new FormData()
+  fd.append("file", file)
+  fd.append("bucket", bucket)
+  const res  = await fetch("/api/upload", { method: "POST", body: fd })
+  const data = await res.json()
+  if (!data.ok) throw new Error(data.error)
+  return data.url
 }
 
 /* ═══════════════════════════════════
@@ -166,9 +168,9 @@ export default function CreateChauffeur() {
 
     try {
       const [photoUrl, permisRectoUrl, permisVersoUrl] = await Promise.all([
-        photoFile       ? uploadToStorage(photoFile,       "chauffeurs", "photo")         : null,
-        permisRectoFile ? uploadToStorage(permisRectoFile, "chauffeurs", "permis_recto")  : null,
-        permisVersoFile ? uploadToStorage(permisVersoFile, "chauffeurs", "permis_verso")  : null,
+        photoFile       ? uploadToStorage(photoFile,       "chauffeurs") : null,
+        permisRectoFile ? uploadToStorage(permisRectoFile, "chauffeurs") : null,
+        permisVersoFile ? uploadToStorage(permisVersoFile, "chauffeurs") : null,
       ])
 
       const payload: Record<string, unknown> = {
@@ -191,13 +193,17 @@ export default function CreateChauffeur() {
       const data = await res.json()
 
       if (data.success) {
+        toast.success("Chauffeur créé avec succès")
         router.push("/chauffeurs")
       } else {
+        toast.error(data.error || "Erreur lors de la création")
         setErrorMsg(data.error)
         setLoading(false)
       }
     } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : "Erreur inconnue")
+      const msg = err instanceof Error ? err.message : "Erreur inconnue"
+      toast.error(msg)
+      setErrorMsg(msg)
       setLoading(false)
     }
   }

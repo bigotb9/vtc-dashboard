@@ -5,8 +5,9 @@ import {
   Brain, Sparkles, TrendingUp, TrendingDown, AlertTriangle, CheckCircle,
   Clock, MessageSquare, RefreshCw, BarChart3, Users, Zap, Target,
   ChevronRight, Phone, Send, Shield, Activity, Bot, CalendarClock,
-  Workflow, ChevronDown, ChevronUp, ArrowUpRight, Star
+  Workflow, ChevronDown, ChevronUp, ArrowUpRight, Star, FileDown, Filter,
 } from "lucide-react"
+import Link from "next/link"
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid
@@ -30,7 +31,7 @@ type Analysis = {
   plan_action_30j?: string[]
   parse_error?: boolean
 }
-type RetardVehicule = { immatriculation: string; chauffeur: string; telephone: string|null; ca_mensuel: number; statut: string }
+type RetardVehicule = { id_vehicule?: number; immatriculation: string; chauffeur: string; telephone: string|null; ca_mensuel: number; statut: string }
 type ApiResult = {
   ok: boolean; analysis: Analysis; retardVehicules: RetardVehicule[]
   isAfterNoon: boolean; totalVehicules: number; generatedAt: string
@@ -175,8 +176,12 @@ export default function AiInsightsBoyahGroup() {
   const [liveRetard,    setLiveRetard]    = useState<RetardVehicule[]>([])
   const [liveTotalVeh,  setLiveTotalVeh]  = useState(0)
   const [chartData,     setChartData]     = useState<ChartData | null>(null)
-  const [expandedResume, setExpandedResume] = useState(false)
-  const [expandedReco, setExpandedReco]   = useState<number | null>(null)
+  const [expandedResume,  setExpandedResume]  = useState(false)
+  const [expandedReco,    setExpandedReco]    = useState<number | null>(null)
+  // Filtres
+  const [recoFilter,      setRecoFilter]      = useState<"all"|"critique"|"haute"|"normale">("all")
+  const [alerteFilter,    setAlerteFilter]    = useState<"all"|"critique"|"haute"|"normale">("all")
+  const [exportingPdf,    setExportingPdf]    = useState(false)
 
   // ── Retards paiement live ────────────────────────────────────────
   useEffect(() => {
@@ -191,7 +196,7 @@ export default function AiInsightsBoyahGroup() {
       const nonPayes      = Math.max(0, vehicules.length - recettesCount)
       const enRetard      = vehicules
         .slice(vehicules.length - nonPayes)
-        .map(v => ({ immatriculation: v.immatriculation, chauffeur: "—", telephone: null, ca_mensuel: 0, statut: "" }))
+        .map(v => ({ id_vehicule: v.id_vehicule, immatriculation: v.immatriculation, chauffeur: "—", telephone: null, ca_mensuel: 0, statut: "" }))
       setLiveRetard(enRetard)
       setLiveTotalVeh(vehicules.length)
     }
@@ -328,9 +333,43 @@ export default function AiInsightsBoyahGroup() {
           <p className="text-sm text-gray-500 dark:text-gray-500 ml-11">Piloté par n8n • Analyse IA quotidienne • Alertes WhatsApp automatiques</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {/* Date génération prominente */}
+          {result?.generatedAt && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-[#1E2D45] text-gray-600 dark:text-gray-400">
+              <CalendarClock size={12} />
+              {new Date(result.generatedAt).toLocaleString("fr-FR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+            </div>
+          )}
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-500/20 text-violet-700 dark:text-violet-400">
             <Workflow size={12} />n8n
           </div>
+          {hasAnalysis && (
+            <button
+              onClick={async () => {
+                setExportingPdf(true)
+                const { exportInsightsPdf } = await import("@/lib/exportPdf")
+                await exportInsightsPdf({
+                  score:          analysis?.score_sante?.global ?? 0,
+                  generatedAt:    result?.generatedAt ?? "",
+                  resumeExecutif: result?.analysis?.resume_executif ?? "",
+                  recommandations: analysis?.recommandations ?? [],
+                  alertes:        analysis?.alertes ?? [],
+                  plan30j:        analysis?.plan_action_30j ?? [],
+                  retardVehicules: retard,
+                  caTotal:        chartData?.caTotal ?? 0,
+                  depensesTotal:  chartData?.depensesTotal ?? 0,
+                })
+                setExportingPdf(false)
+              }}
+              disabled={exportingPdf}
+              className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold border border-indigo-200 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition disabled:opacity-50">
+              {exportingPdf
+                ? <span className="w-3.5 h-3.5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                : <FileDown size={13} />
+              }
+              PDF
+            </button>
+          )}
           <button onClick={triggerAnalysis} disabled={triggering}
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700 shadow-md shadow-indigo-500/20 transition-all disabled:opacity-60 disabled:cursor-not-allowed">
             {triggering
@@ -415,9 +454,15 @@ export default function AiInsightsBoyahGroup() {
                       <div className="w-8 h-8 rounded-full bg-red-100 dark:bg-red-500/10 flex items-center justify-center flex-shrink-0">
                         <span className="text-xs font-bold text-red-600 dark:text-red-400">{v.immatriculation?.[0] || "?"}</span>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <span className="font-mono text-xs font-bold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-white/10 px-2 py-0.5 rounded-lg">{v.immatriculation}</span>
-                        <span className="ml-2 text-[10px] font-semibold text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-500/10 px-2 py-0.5 rounded-full">Non payé</span>
+                      <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
+                        {v.id_vehicule
+                          ? <Link href={`/vehicules/${v.id_vehicule}`}
+                              className="font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-gray-100 dark:bg-white/10 px-2 py-0.5 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition">
+                              {v.immatriculation}
+                            </Link>
+                          : <span className="font-mono text-xs font-bold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-white/10 px-2 py-0.5 rounded-lg">{v.immatriculation}</span>
+                        }
+                        <span className="text-[10px] font-semibold text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-500/10 px-2 py-0.5 rounded-full">Non payé</span>
                       </div>
                       <button onClick={() => setExpandedMsg(isExpanded ? null : v.immatriculation)}
                         className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition">
@@ -748,15 +793,28 @@ export default function AiInsightsBoyahGroup() {
           {/* ── ALERTES CLAUDE ────────────────────────────────────── */}
           {(analysis.alertes || []).length > 0 && (
             <div className="space-y-3">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <AlertTriangle size={13} className="text-amber-500" />
                 <h3 className="text-sm font-bold text-gray-900 dark:text-white">Alertes détectées par Claude</h3>
                 <span className="text-xs text-gray-400 dark:text-gray-600 bg-gray-100 dark:bg-white/5 px-2 py-0.5 rounded-full font-semibold">
                   {(analysis.alertes || []).length}
                 </span>
+                {/* Filtres urgence */}
+                <div className="ml-auto flex items-center gap-1 bg-gray-100 dark:bg-[#0D1424] rounded-lg p-0.5">
+                  {(["all","critique","haute","normale"] as const).map(f => (
+                    <button key={f} onClick={() => setAlerteFilter(f)}
+                      className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition ${
+                        alerteFilter === f
+                          ? "bg-white dark:bg-[#1A2A45] text-amber-600 dark:text-amber-400 shadow-sm"
+                          : "text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                      }`}>
+                      {f === "all" ? "Tout" : f.charAt(0).toUpperCase() + f.slice(1)}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {(analysis.alertes || []).map((a, i) => {
+                {(analysis.alertes || []).filter(a => alerteFilter === "all" || a.urgence === alerteFilter).map((a, i) => {
                   const cfg = urgenceCfg(a.urgence)
                   return (
                     <div key={i} className={`rounded-2xl border p-4 ${cfg.bg}`}>
@@ -840,7 +898,27 @@ export default function AiInsightsBoyahGroup() {
           {/* Tab Recommandations */}
           {activeTab === "recommandations" && (
             <div className="space-y-3">
-              {(analysis.recommandations || []).map((r, i) => {
+              {/* Filtres priorité */}
+              <div className="flex flex-wrap items-center gap-2">
+                <Filter size={12} className="text-gray-400" />
+                <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">Priorité :</span>
+                <div className="flex items-center gap-1 bg-gray-100 dark:bg-[#0D1424] rounded-lg p-0.5">
+                  {(["all","critique","haute","normale"] as const).map(f => (
+                    <button key={f} onClick={() => setRecoFilter(f)}
+                      className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition ${
+                        recoFilter === f
+                          ? "bg-white dark:bg-[#1A2A45] text-indigo-600 dark:text-indigo-400 shadow-sm"
+                          : "text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                      }`}>
+                      {f === "all" ? "Tout" : f.charAt(0).toUpperCase() + f.slice(1)}
+                    </button>
+                  ))}
+                </div>
+                <span className="text-xs text-gray-400 dark:text-gray-600 ml-1">
+                  {(analysis.recommandations || []).filter(r => recoFilter === "all" || r.priorite === recoFilter).length} résultat{(analysis.recommandations || []).filter(r => recoFilter === "all" || r.priorite === recoFilter).length > 1 ? "s" : ""}
+                </span>
+              </div>
+              {(analysis.recommandations || []).filter(r => recoFilter === "all" || r.priorite === recoFilter).map((r, i) => {
                 const pCfg    = prioriteCfg(r.priorite)
                 const Icon    = catIcon(r.categorie)
                 const isOpen  = expandedReco === i

@@ -8,6 +8,9 @@ import {
   Wallet, Trophy, Calendar, Home, Users,
   CreditCard, ShieldCheck, FileText, ZoomIn, Pencil
 } from "lucide-react"
+import AffectationWidget from "@/components/AffectationWidget"
+import Breadcrumbs from "@/components/Breadcrumbs"
+import ExportFicheButton from "@/components/ExportFicheButton"
 
 /* ── helpers ── */
 const fmt     = (n: number)  => n.toLocaleString("fr-FR")
@@ -131,6 +134,8 @@ export default async function ChauffeurPage({
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 space-y-5">
 
+      <Breadcrumbs entityName={chauffeur.nom} />
+
       {/* ── HEADER ── */}
       <div className="flex items-center gap-3">
         <Link href="/chauffeurs"
@@ -141,6 +146,25 @@ export default async function ChauffeurPage({
           <p className="text-xs text-gray-500 dark:text-gray-400">Chauffeurs / Profil</p>
           <h1 className="text-xl font-bold text-gray-900 dark:text-white leading-tight">{chauffeur.nom}</h1>
         </div>
+        <ExportFicheButton type="chauffeur" opts={{
+          nom:         chauffeur.nom,
+          numeroWave:  chauffeur.numero_wave  || undefined,
+          numeroPermis: chauffeur.numero_permis || undefined,
+          numeroCni:   chauffeur.numero_cni    || undefined,
+          domicile:    chauffeur.domicile      || undefined,
+          garant:      chauffeur.numero_garant || undefined,
+          caTotal:     classement?.ca || 0,
+          caMensuel,
+          transactions: recettesRaw?.length || 0,
+          rang,
+          totalChauffeurs,
+          actif:       chauffeur.actif,
+          recettes:    (recettesRaw || []).map(r => ({
+            date:       fmtDate(r.Horodatage),
+            montantNet:  r["Montant net"]  || 0,
+            montantBrut: r["Montant brut"] || 0,
+          })),
+        }} />
         <Link href={`/chauffeurs/${id}/edit`}
           className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border border-indigo-200 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition shadow-sm">
           <Pencil size={14} />Modifier
@@ -204,11 +228,16 @@ export default async function ChauffeurPage({
               <Icon size={15} className={iconColor} />
             </div>
             <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{label}</p>
-            <p className="text-xl font-bold text-gray-900 dark:text-white mt-0.5 break-words">{value}</p>
+            <p className="text-xl font-bold font-numeric text-gray-900 dark:text-white mt-0.5 break-words">{value}</p>
             <p className="text-xs text-gray-400">{unit}</p>
           </div>
         ))}
 
+      </div>
+
+      {/* ── AFFECTATION VÉHICULE ── */}
+      <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm p-5">
+        <AffectationWidget mode="chauffeur" id={Number(id)} />
       </div>
 
       {/* ── INFOS GÉNÉRALES ── */}

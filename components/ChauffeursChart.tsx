@@ -1,37 +1,77 @@
 "use client"
 
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell } from "recharts"
+import { motion } from "framer-motion"
 
 type ChauffeurPerformance = { nom: string; ca: number }
 
-const COLORS = ["#6366f1","#8b5cf6","#a78bfa","#7c3aed","#4f46e5","#818cf8","#c4b5fd"]
-
-const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: { value: number }[]; label?: string }) => {
-  if (!active || !payload?.length) return null
-  return (
-    <div className="bg-white dark:bg-[#0D1424] border border-gray-100 dark:border-[#1E2D45] rounded-xl px-4 py-3 shadow-xl">
-      <p className="text-xs text-gray-500 dark:text-gray-500 mb-1 font-medium">{label}</p>
-      <p className="text-sm font-bold text-indigo-600 dark:text-indigo-400">
-        {Number(payload[0].value).toLocaleString("fr-FR")} <span className="text-xs opacity-60">FCFA</span>
-      </p>
-    </div>
-  )
-}
+const RANK_COLORS = [
+  "from-amber-400 to-orange-500",    // 1er
+  "from-gray-300 to-gray-400",       // 2e
+  "from-orange-700 to-amber-800",    // 3e
+  "from-indigo-400 to-violet-500",   // 4e+
+]
 
 export default function ChauffeursChart({ data }: { data: ChauffeurPerformance[] }) {
+  const top10  = [...data].sort((a, b) => b.ca - a.ca).slice(0, 10)
+  const maxCa  = top10[0]?.ca || 1
+  const total  = top10.reduce((s, d) => s + d.ca, 0)
+
   return (
-    <ResponsiveContainer width="100%" height={260}>
-      <BarChart data={data.slice(0, 10)} margin={{ top: 5, right: 5, left: 0, bottom: 20 }}>
-        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" className="dark:[&>line]:stroke-[#1E2D45]" />
-        <XAxis dataKey="nom" tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false}
-          angle={-35} textAnchor="end" interval={0} />
-        <YAxis tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false}
-          tickFormatter={v => `${(v/1000).toFixed(0)}k`} />
-        <Tooltip content={<CustomTooltip />} />
-        <Bar dataKey="ca" radius={[6, 6, 0, 0]}>
-          {data.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-        </Bar>
-      </BarChart>
-    </ResponsiveContainer>
+    <div className="space-y-2.5">
+      {top10.map((chauffeur, i) => {
+        const pct     = (chauffeur.ca / maxCa) * 100
+        const share   = total > 0 ? ((chauffeur.ca / total) * 100).toFixed(1) : "0"
+        const color   = RANK_COLORS[Math.min(i, RANK_COLORS.length - 1)]
+        const isTop3  = i < 3
+
+        return (
+          <div key={chauffeur.nom} className="group">
+            <div className="flex items-center gap-3 mb-1">
+              {/* Rang */}
+              <div className={`w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-black text-white flex-shrink-0
+                bg-gradient-to-br ${color} ${isTop3 ? "shadow-sm" : "opacity-70"}`}>
+                {i + 1}
+              </div>
+
+              {/* Nom */}
+              <span className={`flex-1 text-xs font-semibold truncate ${
+                isTop3 ? "text-gray-900 dark:text-white" : "text-gray-600 dark:text-gray-400"
+              }`}>
+                {chauffeur.nom}
+              </span>
+
+              {/* Part % */}
+              <span className="text-[10px] text-gray-400 dark:text-gray-600 font-medium flex-shrink-0">
+                {share}%
+              </span>
+
+              {/* Montant */}
+              <span className={`text-xs font-bold font-numeric flex-shrink-0 ${
+                isTop3 ? "text-indigo-600 dark:text-indigo-400" : "text-gray-600 dark:text-gray-500"
+              }`}>
+                {Math.round(chauffeur.ca).toLocaleString("fr-FR")}
+                <span className="text-[9px] opacity-60 ml-0.5">F</span>
+              </span>
+            </div>
+
+            {/* Barre de progression */}
+            <div className="ml-8 h-1.5 bg-gray-100 dark:bg-[#1A2235] rounded-full overflow-hidden">
+              <motion.div
+                className={`h-full rounded-full bg-gradient-to-r ${color}`}
+                initial={{ width: 0 }}
+                animate={{ width: `${pct}%` }}
+                transition={{ duration: 0.8, delay: i * 0.06, ease: [0.25, 0.46, 0.45, 0.94] }}
+              />
+            </div>
+          </div>
+        )
+      })}
+
+      {top10.length === 0 && (
+        <div className="text-center py-8 text-sm text-gray-400 dark:text-gray-600">
+          Aucune donnée disponible
+        </div>
+      )}
+    </div>
   )
 }

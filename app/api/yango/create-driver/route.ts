@@ -3,15 +3,25 @@ import { randomUUID } from "crypto"
 
 export async function POST(req: NextRequest) {
   try {
+    const url    = process.env.YANGO_CREATE_DRIVER_URL
+    const apiKey = process.env.YANGO_CREATE_DRIVER_API_KEY
+    const clid   = process.env.CLID
+    const parkId = process.env.ID_DU_PARTENAIRE
+
+    if (!url || !apiKey || !clid || !parkId) {
+      const missing = [!url && "YANGO_CREATE_DRIVER_URL", !apiKey && "YANGO_CREATE_DRIVER_API_KEY", !clid && "CLID", !parkId && "ID_DU_PARTENAIRE"].filter(Boolean)
+      return NextResponse.json({ success: false, error: `Variables d'environnement manquantes sur Vercel : ${missing.join(", ")}` }, { status: 500 })
+    }
+
     const body = await req.json()
 
-    const response = await fetch(process.env.YANGO_CREATE_DRIVER_URL!, {
+    const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type":        "application/json",
-        "X-API-Key":           process.env.YANGO_CREATE_DRIVER_API_KEY!,
-        "X-Client-ID":         process.env.CLID!,
-        "X-Park-ID":           process.env.ID_DU_PARTENAIRE!,
+        "X-API-Key":           apiKey,
+        "X-Client-ID":         clid,
+        "X-Park-ID":           parkId,
         "X-Idempotency-Token": randomUUID(),
       },
       body: JSON.stringify(body),

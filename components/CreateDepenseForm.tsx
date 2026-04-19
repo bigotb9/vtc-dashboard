@@ -7,6 +7,7 @@ import {
   Banknote, Car, FileText, AlertTriangle
 } from "lucide-react"
 import Link from "next/link"
+import { toast } from "@/lib/toast"
 
 /* ── types ── */
 type Vehicule = {
@@ -110,8 +111,13 @@ export default function CreateDepenseForm({ vehicules }: Props) {
     const data = await res.json()
     setLoading(false)
 
-    if (data.success) router.push("/depenses")
-    else setErrorMsg(data.error)
+    if (data.success) {
+      toast.success("Dépense enregistrée avec succès")
+      router.push("/depenses")
+    } else {
+      toast.error(data.error || "Erreur lors de l'enregistrement")
+      setErrorMsg(data.error)
+    }
   }
 
   /* ── render ── */

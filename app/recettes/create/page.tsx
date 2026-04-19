@@ -92,76 +92,206 @@ function Field({ label, children, required }: {
 export default function CreateRecette() {
 
   const router = useRouter()
-  const [tab, setTab] = useState<Tab>("csv")
-  const [loading, setLoading] = useState(false)
-  const [dragOver, setDragOver] = useState(false)
-  const [csvResult, setCsvResult] = useState<{ success: boolean; count?: number; error?: string } | null>(null)
+  const [tab,        setTab]        = useState<Tab>("csv")
+  const [loading,    setLoading]    = useState(false)
+  const [importing,  setImporting]  = useState(false)
+  const [dragOver,   setDragOver]   = useState(false)
+  const [csvResult,  setCsvResult]  = useState<{ success: boolean; count?: number; error?: string } | null>(null)
   const [formResult, setFormResult] = useState<{ success: boolean; error?: string } | null>(null)
-  const [form, setForm] = useState<FormState>(emptyForm)
+  const [form,       setForm]       = useState<FormState>(emptyForm)
+
+  // Prévisualisation CSV avant import
+  const [csvPreview, setCsvPreview] = useState<{
+    rawHeaders:  string[]
+    rawSample:   Record<string, string>[]
+    mappedRows:  Record<string, unknown>[]
+    colMapping:  Record<string, string | null>   // champ Supabase → colonne CSV trouvée
+  } | null>(null)
 
   const set = (key: keyof FormState, value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }))
 
   const input = "w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600 rounded-xl px-3.5 py-2.5 text-sm transition focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent focus:bg-white dark:focus:bg-gray-750"
 
-  /* ── CSV ── */
+  /* ─────────── CSV helpers ─────────── */
 
   type CsvRow = { [key: string]: string }
 
+  /** Normalise un nom de colonne pour la comparaison */
+  function norm(s: string): string {
+    return s
+      .toLowerCase()
+      .trim()
+      .replace(/\uFEFF/g, "")          // BOM
+      .replace(/[\u2018\u2019]/g, "'") // apostrophes typographiques
+      .replace(/\u00e9/g, "e")         // é → e (pour "numerO")
+      .replace(/\u00e8/g, "e")
+      .replace(/\u00ea/g, "e")
+      .replace(/\u00f4/g, "o")
+      .replace(/\s+/g, " ")
+  }
+
+  /**
+   * Recherche une colonne CSV par MOTS-CLÉS (fallback robuste si nom exact absent).
+   * Retourne le nom exact de la colonne trouvée dans le CSV, ou null.
+   */
+  function findCol(headers: string[], keywords: string[][]): string | null {
+    const normHeaders = headers.map(h => ({ raw: h, n: norm(h) }))
+    for (const kws of keywords) {
+      const normKws = kws.map(k => norm(k))
+      // Cherche un header qui contient TOUS les mots-clés du groupe
+      const found = normHeaders.find(h => normKws.every(kw => h.n.includes(kw)))
+      if (found) return found.raw
+    }
+    return null
+  }
+
+  /** Parse un nombre français ou anglais : "1 500,00" → 1500 */
+  function parseNum(val: string | undefined): number | null {
+    if (val === undefined || val === null || String(val).trim() === "") return null
+    const cleaned = String(val).replace(/[\s\u00a0]/g, "").replace(",", ".")
+    const n = parseFloat(cleaned)
+    return isNaN(n) ? null : n
+  }
+
+  /** Construit le mapping champ Supabase → colonne CSV (EN et FR) */
+  function buildMapping(headers: string[]): Record<string, string | null> {
+    return {
+      // Date/heure — "Timestamp" (EN) ou "Horodatage" (FR)
+      "Horodatage": findCol(headers, [
+        ["timestamp"], ["horodatage"], ["date"],
+      ]),
+
+      // Identifiant — "Transaction ID" (EN) ou "Identifiant de transaction" (FR)
+      "Identifiant de transaction": findCol(headers, [
+        ["transaction", "id"], ["transaction id"],
+        ["identifiant", "transaction"], ["id", "transaction"],
+      ]),
+
+      // Type — "Transaction Type" (EN) ou "Type de transaction" (FR)
+      "Type de transaction": findCol(headers, [
+        ["transaction", "type"], ["transaction type"],
+        ["type", "transaction"], ["type"],
+      ]),
+
+      // Montants
+      "Montant net":  findCol(headers, [["net", "amount"], ["net amount"], ["montant", "net"], ["net"]]),
+      "Montant brut": findCol(headers, [["gross", "amount"], ["gross amount"], ["montant", "brut"], ["brut"], ["gross"]]),
+      "Frais":        findCol(headers, [["fee"], ["fees"], ["frais"]]),
+      "Solde":        findCol(headers, [["balance"], ["solde"]]),
+      "Devise":       findCol(headers, [["currency"], ["devise"]]),
+
+      // Contrepartie — "Counterparty Name/Mobile" (EN) ou "Nom/Tel de contrepartie" (FR)
+      "Nom de contrepartie": findCol(headers, [
+        ["counterparty", "name"], ["counterparty name"],
+        ["counterparty"], ["nom", "contrepartie"], ["contrepartie"],
+      ]),
+      "Numéro de téléphone de contrepartie": findCol(headers, [
+        ["counterparty", "mobile"], ["counterparty mobile"],
+        ["counterparty", "phone"], ["counterparty phone"],
+        ["telephone", "contrepartie"], ["tel", "contrepartie"],
+      ]),
+
+      // Utilisateur — "Business User Name/Mobile" (EN) ou "Nom d'utilisateur" (FR)
+      "Nom d'utilisateur": findCol(headers, [
+        ["business", "user", "name"], ["business user name"],
+        ["business", "user"], ["business user"],
+        ["nom", "utilisateur"], ["utilisateur"],
+      ]),
+      "Numéro de téléphone d'utilisateur": findCol(headers, [
+        ["business", "user", "mobile"], ["business user mobile"],
+        ["business", "user", "phone"], ["business user phone"],
+        ["telephone", "utilisateur"], ["tel", "utilisateur"],
+      ]),
+    }
+  }
+
+  /** Convertit une ligne CSV brute en objet Supabase via le mapping */
+  function mapRow(row: CsvRow, mapping: Record<string, string | null>): Record<string, unknown> {
+    const numFields = new Set(["Montant net", "Montant brut", "Frais", "Solde"])
+    const entry: Record<string, unknown> = {}
+    for (const [supaCol, csvCol] of Object.entries(mapping)) {
+      if (!csvCol) { entry[supaCol] = null; continue }
+      const raw = row[csvCol]
+      if (numFields.has(supaCol)) {
+        entry[supaCol] = parseNum(raw)
+      } else {
+        entry[supaCol] = raw?.trim() || null
+      }
+    }
+    // Devise par défaut
+    if (!entry["Devise"]) entry["Devise"] = "XOF"
+    return entry
+  }
+
+  /** Étape 1 : parse + prévisualisation (sans envoyer à l'API) */
   const processFile = (file: File) => {
     setLoading(true)
     setCsvResult(null)
+    setCsvPreview(null)
 
     Papa.parse<CsvRow>(file, {
-      header: true,
+      header:         true,
       skipEmptyLines: true,
-      complete: async (results) => {
-        const rows = results.data.map((row) => {
-          const entry: Record<string, unknown> = {
-            Horodatage: row["Horodatage"] || row["Date"] || null,
-            "Identifiant de transaction": row["Identifiant de transaction"] || null,
-            "Type de transaction": row["Type de transaction"] || null,
-            "Montant net": row["Montant net"] !== undefined ? Number(row["Montant net"]) : null,
-            "Montant brut": row["Montant brut"] !== undefined ? Number(row["Montant brut"]) : null,
-            Frais: row["Frais"] !== undefined ? Number(row["Frais"]) : null,
-            Solde: row["Solde"] !== undefined ? Number(row["Solde"]) : null,
-            Devise: row["Devise"] || "XOF",
-            "Nom de contrepartie": row["Nom de contrepartie"] || null,
-            "Numéro de téléphone de contrepartie": row["Numéro de téléphone de contrepartie"] || null,
-            "Nom d'utilisateur": row["Nom d'utilisateur"] || null,
-            "Numéro de téléphone d'utilisateur": row["Numéro de téléphone d'utilisateur"] || null,
-          }
-          if (row["id_recette"]) entry.id_recette = Number(row["id_recette"])
-          return entry
-        })
-
-        const res = await fetch("/api/recettes/import", {
-          method: "POST",
-          body: JSON.stringify(rows),
-        })
-        const data = await res.json()
+      delimiter:      "",        // auto-détect , ou ;
+      complete: (results) => {
         setLoading(false)
 
-        if (data.success) {
-          setCsvResult({ success: true, count: data.count })
-          setTimeout(() => router.push("/recettes"), 2500)
-        } else {
-          setCsvResult({ success: false, error: data.error })
+        const headers = results.meta.fields || []
+        if (!headers.length || !results.data.length) {
+          setCsvResult({ success: false, error: "Fichier vide ou format non reconnu." })
+          return
         }
+
+        const mapping    = buildMapping(headers)
+        const mappedRows = results.data.map(row => mapRow(row, mapping))
+        const rawSample  = results.data.slice(0, 3) as Record<string, string>[]
+
+        setCsvPreview({ rawHeaders: headers, rawSample, mappedRows, colMapping: mapping })
+      },
+      error: (err) => {
+        setLoading(false)
+        setCsvResult({ success: false, error: `Erreur de lecture : ${err.message}` })
       },
     })
+  }
+
+  /** Étape 2 : import effectif après confirmation */
+  const confirmImport = async () => {
+    if (!csvPreview) return
+    setImporting(true)
+
+    const validRows = csvPreview.mappedRows.filter(r =>
+      r["Identifiant de transaction"] || r["Horodatage"] || r["Montant net"] !== null
+    )
+
+    const res  = await fetch("/api/recettes/import", {
+      method: "POST",
+      body:   JSON.stringify(validRows),
+    })
+    const data = await res.json()
+    setImporting(false)
+    setCsvPreview(null)
+
+    if (data.success) {
+      setCsvResult({ success: true, count: data.count })
+      setTimeout(() => router.push("/recettes"), 2500)
+    } else {
+      setCsvResult({ success: false, error: data.error })
+    }
   }
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) processFile(file)
+    e.target.value = ""
   }
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault()
     setDragOver(false)
     const file = e.dataTransfer.files?.[0]
-    if (file && file.name.endsWith(".csv")) processFile(file)
+    if (file) processFile(file)
   }
 
   /* ── Manuel ── */
@@ -267,66 +397,148 @@ export default function CreateRecette() {
         {tab === "csv" && (
           <div className="space-y-4">
 
-            {/* Colonnes Wave */}
-            <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm p-5 space-y-3">
-              <div className="flex items-center gap-2">
-                <FileText size={15} className="text-purple-500" />
-                <span className="text-sm font-semibold text-gray-800 dark:text-white">
-                  Colonnes attendues dans l&apos;export Wave
-                </span>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {csvColumns.map((col) => (
-                  <span
-                    key={col}
-                    className="inline-flex items-center px-2.5 py-1 rounded-lg bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 text-[11px] font-mono font-medium border border-purple-100 dark:border-purple-800"
-                  >
-                    {col}
-                  </span>
-                ))}
-              </div>
-              <p className="text-[11px] text-gray-400 dark:text-gray-500 flex items-center gap-1.5">
-                <CheckCircle size={11} className="text-green-500 flex-shrink-0" />
-                Les doublons (même &quot;Identifiant de transaction&quot;) sont automatiquement ignorés.
-              </p>
-            </div>
+            {/* ── Zone upload (masquée si preview active) ── */}
+            {!csvPreview && (
+              <>
+                <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm p-4 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <FileText size={14} className="text-purple-500" />
+                    <span className="text-sm font-semibold text-gray-800 dark:text-white">Export Wave — détection automatique des colonnes</span>
+                  </div>
+                  <p className="text-[11px] text-gray-400 dark:text-gray-500">
+                    Séparateurs , et ; supportés · Montants français (1 500,00) acceptés · Doublons ignorés automatiquement
+                  </p>
+                </div>
 
-            {/* Zone upload */}
-            <label
-              onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={handleDrop}
-              className={`flex flex-col items-center justify-center gap-3 min-h-[220px] rounded-2xl border-2 border-dashed cursor-pointer transition-all duration-200
-                ${loading
-                  ? "opacity-60 cursor-not-allowed border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50"
-                  : dragOver
-                    ? "border-purple-500 bg-purple-50 dark:bg-purple-900/20 scale-[1.01]"
-                    : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 hover:border-purple-400 dark:hover:border-purple-600 hover:bg-purple-50/50 dark:hover:bg-purple-900/10"
-                }`}
-            >
-              <div className={`flex items-center justify-center w-16 h-16 rounded-2xl transition-colors
-                ${dragOver ? "bg-purple-100 dark:bg-purple-800" : "bg-gray-100 dark:bg-gray-800"}`}>
-                <Upload size={28} className={`transition-colors ${dragOver ? "text-purple-600" : "text-gray-400"}`} />
-              </div>
+                <label
+                  onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+                  onDragLeave={() => setDragOver(false)}
+                  onDrop={handleDrop}
+                  className={`flex flex-col items-center justify-center gap-3 min-h-[200px] rounded-2xl border-2 border-dashed cursor-pointer transition-all duration-200
+                    ${loading
+                      ? "opacity-60 cursor-not-allowed border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50"
+                      : dragOver
+                        ? "border-purple-500 bg-purple-50 dark:bg-purple-900/20 scale-[1.01]"
+                        : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 hover:border-purple-400 dark:hover:border-purple-600 hover:bg-purple-50/50 dark:hover:bg-purple-900/10"
+                    }`}
+                >
+                  <div className={`flex items-center justify-center w-14 h-14 rounded-2xl transition-colors ${dragOver ? "bg-purple-100 dark:bg-purple-800" : "bg-gray-100 dark:bg-gray-800"}`}>
+                    <Upload size={24} className={`transition-colors ${dragOver ? "text-purple-600" : "text-gray-400"}`} />
+                  </div>
+                  <div className="text-center space-y-1">
+                    <p className="text-sm font-semibold text-gray-800 dark:text-white">
+                      {loading ? "Analyse du fichier…" : "Déposer votre fichier ici"}
+                    </p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500">
+                      ou <span className="text-purple-600 dark:text-purple-400 font-medium">cliquer pour parcourir</span>
+                    </p>
+                  </div>
+                  <input type="file" accept=".csv" className="hidden" disabled={loading} onChange={handleFileInput} />
+                </label>
+              </>
+            )}
 
-              <div className="text-center space-y-1">
-                <p className="text-sm font-semibold text-gray-800 dark:text-white">
-                  {loading ? "Import en cours..." : "Déposer votre fichier ici"}
-                </p>
-                <p className="text-xs text-gray-400 dark:text-gray-500">
-                  ou <span className="text-purple-600 dark:text-purple-400 font-medium">cliquer pour parcourir</span>
-                </p>
-                <p className="text-[11px] text-gray-400">Format .csv — export Wave</p>
-              </div>
+            {/* ── PRÉVISUALISATION ── */}
+            {csvPreview && (
+              <div className="space-y-4">
 
-              <input
-                type="file"
-                accept=".csv"
-                className="hidden"
-                disabled={loading}
-                onChange={handleFileInput}
-              />
-            </label>
+                {/* Correspondance colonnes */}
+                <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm p-5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <FileText size={14} className="text-purple-500" />
+                      <span className="text-sm font-bold text-gray-900 dark:text-white">Colonnes détectées dans ton CSV</span>
+                    </div>
+                    <button onClick={() => { setCsvPreview(null); setCsvResult(null) }}
+                      className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition">
+                      ← Changer de fichier
+                    </button>
+                  </div>
+
+                  {/* Colonnes brutes du CSV */}
+                  <div>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Noms exacts dans le fichier :</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {csvPreview.rawHeaders.map(h => (
+                        <span key={h} className="font-mono text-[10px] px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700">
+                          {h}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Mapping champ → colonne CSV */}
+                  <div>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Correspondance champs Supabase → CSV :</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                      {Object.entries(csvPreview.colMapping).map(([supaCol, csvCol]) => (
+                        <div key={supaCol} className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[11px] border ${
+                          csvCol
+                            ? "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20"
+                            : "bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/20"
+                        }`}>
+                          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${csvCol ? "bg-emerald-500" : "bg-red-400"}`} />
+                          <span className="font-semibold text-gray-700 dark:text-gray-300 truncate">{supaCol}</span>
+                          <span className="text-gray-400 dark:text-gray-600 flex-shrink-0">→</span>
+                          <span className={`font-mono truncate ${csvCol ? "text-emerald-700 dark:text-emerald-400" : "text-red-500 dark:text-red-400 italic"}`}>
+                            {csvCol || "NON TROUVÉ"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Échantillon ligne 1 */}
+                  {csvPreview.rawSample[0] && (
+                    <div>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Valeurs de la 1ère ligne brute :</p>
+                      <div className="overflow-x-auto rounded-xl border border-gray-100 dark:border-gray-800">
+                        <table className="w-full text-[10px] min-w-[400px]">
+                          <thead className="bg-gray-50 dark:bg-[#080F1E]">
+                            <tr>
+                              {csvPreview.rawHeaders.map(h => (
+                                <th key={h} className="px-2 py-1.5 text-left font-semibold text-gray-500 dark:text-gray-500 font-mono whitespace-nowrap">{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr>
+                              {csvPreview.rawHeaders.map(h => (
+                                <td key={h} className="px-2 py-1.5 text-gray-700 dark:text-gray-300 whitespace-nowrap max-w-[120px] truncate font-mono">
+                                  {csvPreview.rawSample[0][h] || <span className="text-gray-300 dark:text-gray-700 italic">vide</span>}
+                                </td>
+                              ))}
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Résumé + bouton */}
+                  <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-800">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                        {csvPreview.mappedRows.length} ligne{csvPreview.mappedRows.length > 1 ? "s" : ""} prête{csvPreview.mappedRows.length > 1 ? "s" : ""} à importer
+                      </p>
+                      {Object.values(csvPreview.colMapping).filter(v => !v).length > 0 && (
+                        <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
+                          ⚠ {Object.values(csvPreview.colMapping).filter(v => !v).length} champ(s) non trouvés — ils seront NULL.
+                          Si un champ important est rouge ci-dessus, vérifie le nom exact dans ton CSV.
+                        </p>
+                      )}
+                    </div>
+                    <button onClick={confirmImport} disabled={importing}
+                      className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-sm font-semibold transition shadow-md shadow-emerald-500/20">
+                      {importing
+                        ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Import…</>
+                        : <><CheckCircle size={15} />Confirmer l&apos;import</>
+                      }
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Résultat */}
             {csvResult && (
@@ -349,7 +561,7 @@ export default function CreateRecette() {
                       <AlertCircle size={18} className="flex-shrink-0" />
                       <div>
                         <p className="font-semibold">Erreur lors de l&apos;import</p>
-                        <p className="text-xs opacity-75 mt-0.5">{csvResult.error}</p>
+                        <p className="text-xs opacity-75 mt-0.5 font-mono">{csvResult.error}</p>
                       </div>
                     </>
                   )

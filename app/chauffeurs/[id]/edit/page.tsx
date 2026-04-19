@@ -13,11 +13,13 @@ import Image from "next/image"
 
 /* ── helpers ── */
 async function uploadPhoto(bucket: string, file: File): Promise<string> {
-  const ext  = file.name.split(".").pop()
-  const name = `chauffeur_${Date.now()}.${ext}`
-  const { error } = await supabase.storage.from(bucket).upload(name, file, { upsert: true })
-  if (error) throw new Error(error.message)
-  return supabase.storage.from(bucket).getPublicUrl(name).data.publicUrl
+  const fd = new FormData()
+  fd.append("file", file)
+  fd.append("bucket", bucket)
+  const res  = await fetch("/api/upload", { method: "POST", body: fd })
+  const data = await res.json()
+  if (!data.ok) throw new Error(data.error)
+  return data.url
 }
 
 function SectionHeader({ icon: Icon, label, color }: {
