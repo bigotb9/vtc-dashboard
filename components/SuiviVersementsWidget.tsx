@@ -71,11 +71,16 @@ export default function SuiviVersementsWidget() {
 
   const today = new Date().toISOString().slice(0, 10)
   const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
+  const isSundayToday  = new Date().getDay() === 0
+  const casesToday     = data?.cases.filter(c => c.date === today) || []
+  const isHolidayToday = casesToday.length > 0 && casesToday.every(c => c.statut === "jour_ferie_auto" || c.statut === "paye_complet")
+    && casesToday.some(c => c.statut === "jour_ferie_auto")
 
   const alertesHier = data?.cases.filter(c => c.date === yesterday && (c.statut === "manquant" || c.statut === "paye_insuffisant")) || []
-  const enCoursAuj  = data?.cases.filter(c => c.date === today && (c.statut === "en_cours")).length || 0
-  const payesAuj    = data?.cases.filter(c => c.date === today && c.statut === "paye_complet").length || 0
-  const totalAuj    = payesAuj + enCoursAuj
+  const enCoursAuj  = casesToday.filter(c => c.statut === "en_cours").length
+  const payesAuj    = casesToday.filter(c => c.statut === "paye_complet").length
+  const insuffAuj   = casesToday.filter(c => c.statut === "paye_insuffisant").length
+  const totalAuj    = payesAuj + enCoursAuj + insuffAuj
 
   return (
     <div className="bg-white dark:bg-[#0D1424] rounded-2xl border border-gray-100 dark:border-[#1E2D45] shadow-sm overflow-hidden">
@@ -176,14 +181,34 @@ export default function SuiviVersementsWidget() {
 
           {/* Aujourd'hui */}
           <div className="grid grid-cols-2 gap-2">
-            <div className="rounded-xl bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-500/5 dark:to-teal-500/5 border border-emerald-200/50 dark:border-emerald-500/20 p-3">
-              <div className="flex items-center gap-1.5 mb-1">
-                <CheckCircle2 size={11} className="text-emerald-500" />
-                <p className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">Aujourd&apos;hui</p>
+            {isSundayToday ? (
+              <div className="rounded-xl bg-gradient-to-br from-gray-50 to-slate-50 dark:from-white/[0.02] dark:to-white/[0.01] border border-gray-200/50 dark:border-white/5 p-3">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Clock size={11} className="text-gray-400" />
+                  <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Aujourd&apos;hui</p>
+                </div>
+                <p className="text-lg font-black font-numeric text-gray-400 dark:text-gray-500">Dimanche</p>
+                <p className="text-[10px] text-gray-400 mt-0.5">jour non ouvré</p>
               </div>
-              <p className="text-lg font-black font-numeric text-gray-900 dark:text-white">{payesAuj}<span className="text-sm opacity-50">/{totalAuj}</span></p>
-              <p className="text-[10px] text-gray-400 mt-0.5">versements reçus</p>
-            </div>
+            ) : isHolidayToday ? (
+              <div className="rounded-xl bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-500/5 dark:to-purple-500/5 border border-violet-200/50 dark:border-violet-500/20 p-3">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Clock size={11} className="text-violet-500" />
+                  <p className="text-[10px] font-bold text-violet-700 dark:text-violet-400 uppercase tracking-wider">Aujourd&apos;hui</p>
+                </div>
+                <p className="text-lg font-black font-numeric text-violet-700 dark:text-violet-400">Férié</p>
+                <p className="text-[10px] text-gray-400 mt-0.5">justification auto</p>
+              </div>
+            ) : (
+              <div className="rounded-xl bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-500/5 dark:to-teal-500/5 border border-emerald-200/50 dark:border-emerald-500/20 p-3">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <CheckCircle2 size={11} className="text-emerald-500" />
+                  <p className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">Aujourd&apos;hui</p>
+                </div>
+                <p className="text-lg font-black font-numeric text-gray-900 dark:text-white">{payesAuj}<span className="text-sm opacity-50">/{totalAuj}</span></p>
+                <p className="text-[10px] text-gray-400 mt-0.5">versements reçus</p>
+              </div>
+            )}
             <div className={`rounded-xl border p-3 ${
               alertesHier.length === 0
                 ? "bg-gradient-to-br from-emerald-50 to-sky-50 dark:from-emerald-500/5 dark:to-sky-500/5 border-emerald-200/50 dark:border-emerald-500/20"
