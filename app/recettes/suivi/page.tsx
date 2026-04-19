@@ -93,7 +93,7 @@ function CaseTooltip({ c }: { c: CaseData }) {
 }
 
 // ── Cellule calendrier ─────────────────────────────────────────────────────────
-function CalCell({ c, onClick }: { c: CaseData; onClick: () => void }) {
+function CalCell({ c, onClick, dimmed, highlighted }: { c: CaseData; onClick: () => void; dimmed?: boolean; highlighted?: boolean }) {
   const [hover, setHover] = useState(false)
   const meta = STATUS_META[c.statut]
   const isClickable = c.statut === "manquant" || c.statut === "paye_insuffisant" || c.statut === "manquant_justifie" || c.statut === "paye_justifie"
@@ -107,7 +107,7 @@ function CalCell({ c, onClick }: { c: CaseData; onClick: () => void }) {
       <button
         onClick={onClick}
         disabled={!isClickable}
-        className={`relative w-full aspect-square rounded-md transition-all ${meta.bg} ${isClickable ? "cursor-pointer hover:scale-110 hover:z-10" : "cursor-default"} ${hasPulse ? "animate-pulse" : ""}`}
+        className={`relative w-full aspect-square rounded-md transition-all ${meta.bg} ${isClickable ? "cursor-pointer hover:scale-110 hover:z-10" : "cursor-default"} ${hasPulse ? "animate-pulse" : ""} ${dimmed ? "opacity-20" : ""} ${highlighted ? "ring-2 ring-indigo-400 ring-offset-1 dark:ring-offset-[#0D1424] z-10 scale-110" : ""}`}
       >
         <span className={`absolute inset-0 flex items-center justify-center text-[9px] font-bold ${c.statut === "non_ouvre" || c.statut === "futur" ? "text-gray-400 dark:text-gray-600" : "text-white"}`}>
           {meta.icon}
@@ -125,8 +125,12 @@ function CalCell({ c, onClick }: { c: CaseData; onClick: () => void }) {
   )
 }
 
-// ── Légende ────────────────────────────────────────────────────────────────────
-function Legend() {
+// ── Légende cliquable (tri + surlignage) ──────────────────────────────────────
+function Legend({ active, counts, onToggle }: {
+  active: CaseStatut | null
+  counts: Map<CaseStatut, number>
+  onToggle: (s: CaseStatut) => void
+}) {
   const items: { statut: CaseStatut; label: string }[] = [
     { statut: "paye_complet",      label: "Complet" },
     { statut: "paye_insuffisant",  label: "Insuffisant" },
@@ -138,13 +142,35 @@ function Legend() {
     { statut: "non_ouvre",         label: "Dimanche" },
   ]
   return (
-    <div className="flex flex-wrap gap-3 text-[11px]">
-      {items.map(i => (
-        <div key={i.statut} className="flex items-center gap-1.5">
-          <span className={`w-3 h-3 rounded ${STATUS_META[i.statut].bg}`} />
-          <span className="text-gray-500 dark:text-gray-400">{i.label}</span>
-        </div>
-      ))}
+    <div className="flex flex-wrap gap-1 text-[11px]">
+      {items.map(i => {
+        const isActive = active === i.statut
+        const count = counts.get(i.statut) || 0
+        return (
+          <button key={i.statut}
+            onClick={() => onToggle(i.statut)}
+            title={isActive ? "Annuler le tri" : `Trier par ${i.label.toLowerCase()}`}
+            className={`flex items-center gap-1.5 px-2 py-1 rounded-md transition ${
+              isActive
+                ? "bg-indigo-100 dark:bg-indigo-500/15 ring-1 ring-indigo-400 dark:ring-indigo-500/60"
+                : "hover:bg-gray-100 dark:hover:bg-white/5"
+            }`}>
+            <span className={`w-3 h-3 rounded ${STATUS_META[i.statut].bg}`} />
+            <span className={isActive ? "text-indigo-700 dark:text-indigo-300 font-bold" : "text-gray-500 dark:text-gray-400"}>
+              {i.label}
+            </span>
+            {count > 0 && (
+              <span className={`text-[9px] font-numeric font-bold px-1 rounded ${
+                isActive
+                  ? "bg-indigo-500 text-white"
+                  : "bg-gray-200 dark:bg-white/10 text-gray-500 dark:text-gray-400"
+              }`}>
+                {count}
+              </span>
+            )}
+          </button>
+        )
+      })}
     </div>
   )
 }
@@ -157,6 +183,7 @@ export default function SuiviVersementsPage() {
   const [offset,   setOffset]   = useState(0)   // offset en jours (0 = aujourd'hui)
   const [window,   setWindow]   = useState(30)  // nombre de jours affichés
   const [modal,    setModal]    = useState<CaseData | null>(null)
+  const [filter,   setFilter]   = useState<CaseStatut | null>(null)  // statut de tri/filtre
 
   const to   = new Date(Date.now() - offset * 86400000).toISOString().slice(0, 10)
   const from = new Date(Date.now() - (offset + window - 1) * 86400000).toISOString().slice(0, 10)
@@ -197,6 +224,36 @@ export default function SuiviVersementsPage() {
     }
     return m
   }, [data])
+
+  // Comptes globaux par statut (pour badges dans la légende)
+  const globalCounts = useMemo(() => {
+    const m = new Map<CaseStatut, number>()
+    if (!data) return m
+    for (const c of data.cases) m.set(c.statut, (m.get(c.statut) || 0) + 1)
+    return m
+  }, [data])
+
+  // Compte de cases par véhicule pour le statut filtré (permet le tri desc)
+  const perVehicleCount = useMemo(() => {
+    const m = new Map<number, number>()
+    if (!data || !filter) return m
+    for (const c of data.cases) {
+      if (c.statut === filter) m.set(c.id_vehicule, (m.get(c.id_vehicule) || 0) + 1)
+    }
+    return m
+  }, [data, filter])
+
+  // Véhicules triés : par compte desc quand filtre actif, sinon par immatriculation
+  const sortedVehicules = useMemo(() => {
+    if (!data) return []
+    if (!filter) return data.vehicules
+    return [...data.vehicules].sort((a, b) => {
+      const ca = perVehicleCount.get(a.id_vehicule) || 0
+      const cb = perVehicleCount.get(b.id_vehicule) || 0
+      if (cb !== ca) return cb - ca
+      return a.immatriculation.localeCompare(b.immatriculation)
+    })
+  }, [data, filter, perVehicleCount])
 
   return (
     <div className="space-y-5 animate-in">
@@ -262,7 +319,11 @@ export default function SuiviVersementsPage() {
 
       {/* TOOLBAR */}
       <div className="bg-white dark:bg-[#0D1424] rounded-2xl border border-gray-100 dark:border-[#1E2D45] p-4 flex items-center justify-between flex-wrap gap-3">
-        <Legend />
+        <Legend
+          active={filter}
+          counts={globalCounts}
+          onToggle={(s) => setFilter(filter === s ? null : s)}
+        />
         <div className="flex items-center gap-2">
           {/* Fenêtre */}
           <div className="flex items-center gap-1 bg-gray-100 dark:bg-[#1A2235] rounded-lg p-1">
@@ -359,30 +420,45 @@ export default function SuiviVersementsPage() {
               </div>
 
               {/* Lignes véhicules */}
-              {data.vehicules.map((v, rowIdx) => (
-                <motion.div key={v.id_vehicule}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0  }}
-                  transition={{ delay: rowIdx * 0.02 }}
-                  className="flex items-center border-b border-gray-50 dark:border-[#1A2235] hover:bg-gray-50/50 dark:hover:bg-white/[0.02] transition"
-                >
-                  <Link href={`/vehicules/${v.id_vehicule}`}
-                    className="w-32 flex-shrink-0 px-4 py-2 font-mono text-xs font-bold text-gray-700 dark:text-gray-300 hover:text-indigo-500 truncate">
-                    {v.immatriculation}
-                  </Link>
-                  <div className="flex gap-0.5 px-2 py-1.5">
-                    {data.dates.map(d => {
-                      const c = matrix?.get(`${v.id_vehicule}|${d}`)
-                      if (!c) return <div key={d} className="w-7 aspect-square" />
-                      return (
-                        <div key={d} className="w-7">
-                          <CalCell c={c} onClick={() => setModal(c)} />
-                        </div>
-                      )
-                    })}
-                  </div>
-                </motion.div>
-              ))}
+              {sortedVehicules.map((v, rowIdx) => {
+                const countForVehicle = filter ? (perVehicleCount.get(v.id_vehicule) || 0) : 0
+                return (
+                  <motion.div key={v.id_vehicule}
+                    layout
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0  }}
+                    transition={{ delay: rowIdx * 0.02 }}
+                    className="flex items-center border-b border-gray-50 dark:border-[#1A2235] hover:bg-gray-50/50 dark:hover:bg-white/[0.02] transition"
+                  >
+                    <Link href={`/vehicules/${v.id_vehicule}`}
+                      className="w-32 flex-shrink-0 px-4 py-2 font-mono text-xs font-bold text-gray-700 dark:text-gray-300 hover:text-indigo-500 truncate flex items-center gap-2">
+                      <span className="truncate">{v.immatriculation}</span>
+                      {filter && countForVehicle > 0 && (
+                        <span className="ml-auto text-[9px] font-numeric font-bold bg-indigo-500 text-white px-1.5 py-0.5 rounded shrink-0">
+                          {countForVehicle}
+                        </span>
+                      )}
+                    </Link>
+                    <div className="flex gap-0.5 px-2 py-1.5">
+                      {data.dates.map(d => {
+                        const c = matrix?.get(`${v.id_vehicule}|${d}`)
+                        if (!c) return <div key={d} className="w-7 aspect-square" />
+                        const matches = filter && c.statut === filter
+                        return (
+                          <div key={d} className="w-7">
+                            <CalCell
+                              c={c}
+                              onClick={() => setModal(c)}
+                              dimmed={!!filter && !matches}
+                              highlighted={!!matches}
+                            />
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </motion.div>
+                )
+              })}
             </div>
           </div>
         </div>
