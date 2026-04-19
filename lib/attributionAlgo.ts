@@ -157,10 +157,15 @@ export function attribuerRecettes(
           type_attribution: gap > 1 ? "retard" : "normal",
         })
         attributedDays.add(targetISO)
-      } else if (!isSunday(dWave)) {
-        // Jour cible pris → bascule vers le 1er jour ouvré disponible à partir de dWave
+      } else {
+        // Jour cible pris. Point de départ :
+        //  - Wave ouvré (ex: samedi) : on reste sur dWave et on avance si besoin
+        //  - Wave dimanche : on bascule sur lundi suivant et on avance si besoin
         let finalDay = new Date(dWave)
-        let finalISO = dWaveISO
+        if (isSunday(finalDay)) {
+          finalDay.setUTCDate(finalDay.getUTCDate() + 1) // → lundi
+        }
+        let finalISO = toISODate(finalDay)
         let safety = 15
         while (attributedDays.has(finalISO) && safety > 0) {
           finalDay.setUTCDate(finalDay.getUTCDate() + 1)
@@ -177,15 +182,6 @@ export function attribuerRecettes(
           type_attribution: "jour_meme",
         })
         attributedDays.add(finalISO)
-      } else {
-        // Wave dimanche + samedi cible pris → on accepte le doublon sur samedi
-        // (pas d'autre option logique, dimanche n'est pas ouvré)
-        attributions.push({
-          id_recette: r.id, id_vehicule,
-          jour_exploitation: targetISO,
-          montant_attribue: montant,
-          type_attribution: "normal",
-        })
       }
     }
   }
