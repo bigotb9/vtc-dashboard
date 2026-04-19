@@ -116,28 +116,54 @@ export function attribuerRecettes(
       const feriesMontant = feries.get(dWaveISO)
       const expected = feriesMontant ?? expectedBase
 
-      // Cas 1 : split multi-jours (skip les jours déjà pris, remonte plus loin)
+      // Cas 1 : split multi-jours
+      //   Stratégie : on essaie d'abord de remonter sur les jours ouvrés précédents (le cas
+      //   normal où le chauffeur a payé plusieurs jours d'un coup pour du travail passé).
+      //   Si tous les jours précédents sont déjà pris (autres chauffeurs ou versements),
+      //   on bascule en avant à partir de dWave (cas où le versement couvre le jour de
+      //   paiement lui-même + des jours passés).
       if (expected > 0) {
         const ratio = montant / expected
         const n = Math.round(ratio)
         if (n >= 2 && Math.abs(montant - n * expected) <= expected * 0.05) {
           const part = montant / n
-          let jour = dWave
           let placed = 0
-          let safety = 15
-          while (placed < n && safety > 0) {
-            jour = prevWorkday(jour)
-            safety--
-            const jourISO = toISODate(jour)
-            if (attributedDays.has(jourISO)) continue
+
+          // Phase 1 : remonter (jour ouvré précédent, etc.)
+          let back = new Date(dWave)
+          for (let i = 0; i < 15 && placed < n; i++) {
+            back = prevWorkday(back)
+            const iso = toISODate(back)
+            if (attributedDays.has(iso)) continue
             attributions.push({
               id_recette: r.id, id_vehicule,
-              jour_exploitation: jourISO,
+              jour_exploitation: iso,
               montant_attribue: part,
               type_attribution: "split_2j",
             })
-            attributedDays.add(jourISO)
+            attributedDays.add(iso)
             placed++
+          }
+
+          // Phase 2 : avancer depuis dWave si on n'a pas tout placé
+          if (placed < n) {
+            let fwd = new Date(dWave)
+            if (isSunday(fwd)) fwd.setUTCDate(fwd.getUTCDate() + 1)
+            for (let i = 0; i < 15 && placed < n; i++) {
+              const iso = toISODate(fwd)
+              if (!attributedDays.has(iso)) {
+                attributions.push({
+                  id_recette: r.id, id_vehicule,
+                  jour_exploitation: iso,
+                  montant_attribue: part,
+                  type_attribution: "split_2j",
+                })
+                attributedDays.add(iso)
+                placed++
+              }
+              fwd.setUTCDate(fwd.getUTCDate() + 1)
+              while (isSunday(fwd)) fwd.setUTCDate(fwd.getUTCDate() + 1)
+            }
           }
           continue
         }
