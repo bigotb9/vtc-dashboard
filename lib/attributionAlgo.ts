@@ -101,8 +101,11 @@ export function attribuerRecettes(
     // Tri chronologique
     txs.sort((a, b) => a.Horodatage.localeCompare(b.Horodatage))
 
-    // Compteur par date Wave : 1ère transac → jour précédent, suivantes → jour même
-    const waveCount = new Map<string, number>()
+    // Set des jours d'exploitation déjà attribués pour ce véhicule.
+    // Permet de détecter les conflits multi-chauffeurs : si 2 chauffeurs paient pour le même
+    // véhicule sur des dates Wave qui pointent vers le même jour d'exploitation, on bascule
+    // le second sur le jour Wave lui-même (jour_meme) plutôt que d'écraser.
+    const attributedDays = new Set<string>()
 
     for (const r of txs) {
       const dWave    = dateOf(r.Horodatage)
@@ -113,49 +116,77 @@ export function attribuerRecettes(
       const feriesMontant = feries.get(dWaveISO)
       const expected = feriesMontant ?? expectedBase
 
-      // Cas 1 : split multi-jours UNIQUEMENT si on a un montant attendu configuré
+      // Cas 1 : split multi-jours (skip les jours déjà pris, remonte plus loin)
       if (expected > 0) {
         const ratio = montant / expected
         const n = Math.round(ratio)
         if (n >= 2 && Math.abs(montant - n * expected) <= expected * 0.05) {
           const part = montant / n
           let jour = dWave
-          for (let i = 0; i < n; i++) {
+          let placed = 0
+          let safety = 15
+          while (placed < n && safety > 0) {
             jour = prevWorkday(jour)
+            safety--
+            const jourISO = toISODate(jour)
+            if (attributedDays.has(jourISO)) continue
             attributions.push({
               id_recette: r.id, id_vehicule,
-              jour_exploitation: toISODate(jour),
+              jour_exploitation: jourISO,
               montant_attribue: part,
               type_attribution: "split_2j",
             })
+            attributedDays.add(jourISO)
+            placed++
           }
-          waveCount.set(dWaveISO, (waveCount.get(dWaveISO) || 0) + 1)
           continue
         }
       }
 
-      const priorCount = waveCount.get(dWaveISO) || 0
+      // Cas 2 : attribution simple avec détection de conflit
+      const targetDay = prevWorkday(dWave)
+      const targetISO = toISODate(targetDay)
 
-      // Cas 2 : 2ème+ transaction du même jour Wave → attribue au jour Wave lui-même (si ouvré)
-      if (priorCount > 0 && !isSunday(dWave)) {
+      if (!attributedDays.has(targetISO)) {
+        // Jour cible libre → normal ou retard
+        const gap = diffDays(dWave, targetDay)
         attributions.push({
           id_recette: r.id, id_vehicule,
-          jour_exploitation: dWaveISO,
-          montant_attribue: montant, type_attribution: "jour_meme",
-        })
-      } else {
-        // Cas 3 : 1ère transac → jour ouvré précédent (normal ou retard)
-        const jourExpl = prevWorkday(dWave)
-        const gap = diffDays(dWave, jourExpl)
-        attributions.push({
-          id_recette: r.id, id_vehicule,
-          jour_exploitation: toISODate(jourExpl),
+          jour_exploitation: targetISO,
           montant_attribue: montant,
           type_attribution: gap > 1 ? "retard" : "normal",
         })
+        attributedDays.add(targetISO)
+      } else if (!isSunday(dWave)) {
+        // Jour cible pris → bascule vers le 1er jour ouvré disponible à partir de dWave
+        let finalDay = new Date(dWave)
+        let finalISO = dWaveISO
+        let safety = 15
+        while (attributedDays.has(finalISO) && safety > 0) {
+          finalDay.setUTCDate(finalDay.getUTCDate() + 1)
+          while (isSunday(finalDay)) {
+            finalDay.setUTCDate(finalDay.getUTCDate() + 1)
+          }
+          finalISO = toISODate(finalDay)
+          safety--
+        }
+        attributions.push({
+          id_recette: r.id, id_vehicule,
+          jour_exploitation: finalISO,
+          montant_attribue: montant,
+          type_attribution: "jour_meme",
+        })
+        attributedDays.add(finalISO)
+      } else {
+        // Wave dimanche + samedi cible pris → on accepte le doublon sur samedi
+        // (pas d'autre option logique, dimanche n'est pas ouvré)
+        attributions.push({
+          id_recette: r.id, id_vehicule,
+          jour_exploitation: targetISO,
+          montant_attribue: montant,
+          type_attribution: "normal",
+        })
       }
-
-      waveCount.set(dWaveISO, priorCount + 1)
     }
   }
 
