@@ -21,6 +21,7 @@ type CaseData = {
   statut:           CaseStatut
   justification?:   { type: string; motif: string | null; auto: boolean }
   types_attribution?: string[]
+  chauffeurs?:      { nom: string; montant: number }[]
 }
 
 const STATUS_META: Record<CaseStatut, { bg: string; label: string; icon: string }> = {
@@ -71,6 +72,19 @@ function CaseTooltip({ c }: { c: CaseData }) {
           {c.nb_transactions > 0 && (
             <div className="flex justify-between"><span className="text-gray-400">Transactions</span><span>{c.nb_transactions}</span></div>
           )}
+        </div>
+      )}
+      {c.chauffeurs && c.chauffeurs.length > 0 && (
+        <div className="pt-1 border-t border-white/10 space-y-0.5">
+          <p className="text-[9px] text-gray-400 uppercase tracking-wider font-semibold mb-0.5">
+            {c.chauffeurs.length > 1 ? "Chauffeurs" : "Chauffeur"}
+          </p>
+          {c.chauffeurs.map(ch => (
+            <div key={ch.nom} className="flex justify-between gap-3">
+              <span className="text-gray-200 truncate">{ch.nom}</span>
+              <span className="font-numeric text-gray-400 text-[10px]">{formatMoney(ch.montant)} F</span>
+            </div>
+          ))}
         </div>
       )}
       {c.types_attribution && c.types_attribution.length > 0 && (
