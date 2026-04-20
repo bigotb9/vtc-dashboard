@@ -58,9 +58,17 @@ function prevWorkday(d: Date): Date {
   return prev
 }
 
-/** Diff en jours calendaires (absolu) entre 2 dates */
-function diffDays(a: Date, b: Date): number {
-  return Math.abs(Math.floor((a.getTime() - b.getTime()) / 86400000))
+/** Nombre de jours OUVRÉS (lundi-samedi) entre 2 dates (absolu).
+ *  Utilisé pour distinguer retard réel vs gap normal avec dimanche. */
+function diffWorkdays(a: Date, b: Date): number {
+  const [start, end] = a <= b ? [a, b] : [b, a]
+  let count = 0
+  const cur = new Date(start)
+  while (cur < end) {
+    cur.setUTCDate(cur.getUTCDate() + 1)
+    if (cur.getUTCDay() !== 0) count++ // pas dimanche
+  }
+  return count
 }
 
 /** Extrait la date UTC (YYYY-MM-DD) d'un horodatage */
@@ -175,7 +183,7 @@ export function attribuerRecettes(
 
       if (!attributedDays.has(targetISO)) {
         // Jour cible libre → normal ou retard
-        const gap = diffDays(dWave, targetDay)
+        const gap = diffWorkdays(dWave, targetDay)
         attributions.push({
           id_recette: r.id, id_vehicule,
           jour_exploitation: targetISO,
