@@ -190,17 +190,25 @@ export function attribuerRecettes(
         })
         attributedDays.add(targetISO)
       } else if (isSunday(dWave)) {
-        // Paiement reçu un DIMANCHE → le travail est forcément du SAMEDI.
-        // Si ce samedi est déjà pris (multi-chauffeurs), on l'accepte quand même
-        // sur samedi plutôt que de sauter sur lundi (qui est un futur jour ouvré distinct).
+        // Paiement reçu un DIMANCHE = travail du samedi OU retard d'un jour passé.
+        // On continue à reculer pour trouver le 1er jour ouvré libre (≠ sauter sur lundi
+        // qui serait un futur jour de travail non encore effectué).
+        let backDay = new Date(targetDay) // commence au samedi cible déjà pris
+        let backISO = targetISO
+        let found   = false
+        for (let i = 0; i < 15; i++) {
+          backDay = prevWorkday(backDay)
+          backISO = toISODate(backDay)
+          if (!attributedDays.has(backISO)) { found = true; break }
+        }
+        if (!found) backISO = targetISO // fallback : samedi, même si doublon
         attributions.push({
           id_recette: r.id, id_vehicule,
-          jour_exploitation: targetISO,
+          jour_exploitation: backISO,
           montant_attribue: montant,
-          type_attribution: "jour_meme",
+          type_attribution: backISO === targetISO ? "jour_meme" : "retard",
         })
-        // NB: on n'ajoute pas à attributedDays — si un 3ème paiement
-        // arrive aussi dimanche pour ce samedi, même traitement.
+        attributedDays.add(backISO)
       } else {
         // Jour ouvré + cible prise → bascule vers le 1er jour ouvré dispo à partir de dWave
         let finalDay = new Date(dWave)
