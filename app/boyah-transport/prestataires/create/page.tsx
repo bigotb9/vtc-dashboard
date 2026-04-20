@@ -102,9 +102,12 @@ export default function CreateDriverPage() {
           },
         }),
       },
-      ...(form.hire_date    && { hire_date:     form.hire_date }),
-      ...(form.car_id       && { car_id:        form.car_id }),
-      ...(form.work_rule_id && { work_rule_id:  form.work_rule_id }),
+      // account est requis par l'API Yango même vide
+      account: {
+        ...(form.work_rule_id && { work_rule_id: form.work_rule_id }),
+      },
+      ...(form.hire_date && { hire_date: form.hire_date }),
+      ...(form.car_id    && { car_id:    form.car_id }),
     }
 
     const res  = await fetch("/api/yango/create-driver", {
