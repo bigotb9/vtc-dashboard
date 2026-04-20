@@ -37,8 +37,6 @@ export type Attribution = {
   type_attribution:  "normal" | "jour_meme" | "split_2j" | "retard"
 }
 
-const TOLERANCE = 0.99            // 1% de frais Wave acceptés
-const JOUR_FERIE_MONTANT = 15000  // par défaut
 
 function toISODate(d: Date): string {
   return d.toISOString().slice(0, 10)
@@ -191,15 +189,22 @@ export function attribuerRecettes(
           type_attribution: gap > 1 ? "retard" : "normal",
         })
         attributedDays.add(targetISO)
+      } else if (isSunday(dWave)) {
+        // Paiement reçu un DIMANCHE → le travail est forcément du SAMEDI.
+        // Si ce samedi est déjà pris (multi-chauffeurs), on l'accepte quand même
+        // sur samedi plutôt que de sauter sur lundi (qui est un futur jour ouvré distinct).
+        attributions.push({
+          id_recette: r.id, id_vehicule,
+          jour_exploitation: targetISO,
+          montant_attribue: montant,
+          type_attribution: "jour_meme",
+        })
+        // NB: on n'ajoute pas à attributedDays — si un 3ème paiement
+        // arrive aussi dimanche pour ce samedi, même traitement.
       } else {
-        // Jour cible pris. Point de départ :
-        //  - Wave ouvré (ex: samedi) : on reste sur dWave et on avance si besoin
-        //  - Wave dimanche : on bascule sur lundi suivant et on avance si besoin
+        // Jour ouvré + cible prise → bascule vers le 1er jour ouvré dispo à partir de dWave
         let finalDay = new Date(dWave)
-        if (isSunday(finalDay)) {
-          finalDay.setUTCDate(finalDay.getUTCDate() + 1) // → lundi
-        }
-        let finalISO = toISODate(finalDay)
+        let finalISO = dWaveISO
         let safety = 15
         while (attributedDays.has(finalISO) && safety > 0) {
           finalDay.setUTCDate(finalDay.getUTCDate() + 1)
