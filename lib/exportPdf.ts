@@ -484,3 +484,154 @@ export async function exportChauffeursPdf(chauffeurs: {
   }
 }
 
+// ── Fiche d'inspection physique (formulaire papier) ────────────────────────────
+export async function exportFicheInspectionPdf(immatriculation = "") {
+  const { jsPDF } = await import("jspdf")
+  const doc  = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" })
+  const W = 210, H = 297, M = 12
+  let y = M
+
+  // Helpers
+  const cb = (x: number, cy: number, s = 3.2) => {
+    doc.setDrawColor(100,100,120); doc.setLineWidth(0.3); doc.rect(x, cy-s+0.6, s, s)
+  }
+  const opt2 = (x: number, cy: number, a: string, b: string, gap = 22) => {
+    cb(x,cy); doc.text(a,x+4,cy); cb(x+gap,cy); doc.text(b,x+gap+4,cy)
+  }
+  const opt3 = (x: number, cy: number, a: string, b: string, c: string) => {
+    cb(x,cy); doc.text(a,x+4,cy); cb(x+26,cy); doc.text(b,x+30,cy); cb(x+56,cy); doc.text(c,x+60,cy)
+  }
+  const foot = () => {
+    doc.setFont("helvetica","normal"); doc.setFontSize(6.5); doc.setTextColor(160,160,180)
+    doc.text("Boyah Group - Fiche inspection vehicule - Confidentiel", W/2, H-5, {align:"center"})
+  }
+  const np = () => { doc.addPage(); y=M; foot() }
+  const sec = (label: string, r: number, g: number, b: number) => {
+    if(y>H-50) np()
+    doc.setFillColor(r,g,b); doc.roundedRect(M,y,W-M*2,6.5,1,1,"F")
+    doc.setFont("helvetica","bold"); doc.setFontSize(8); doc.setTextColor(255,255,255)
+    doc.text(label, M+3, y+4.5)
+    y+=9; doc.setFont("helvetica","normal"); doc.setFontSize(7.5); doc.setTextColor(40,40,60)
+  }
+  const row = (label: string, render: () => void) => {
+    if(y>H-16) np()
+    doc.text(label, M+2, y); render()
+    doc.setDrawColor(220,225,235); doc.setLineWidth(0.2); doc.line(M,y+1.5,W-M,y+1.5); y+=6
+  }
+
+  // Titre
+  doc.setFillColor(79,70,229); doc.rect(0,0,W,22,"F")
+  doc.setFont("helvetica","bold"); doc.setFontSize(14); doc.setTextColor(255,255,255)
+  doc.text("FICHE D'INSPECTION VEHICULE", M, 10)
+  doc.setFont("helvetica","normal"); doc.setFontSize(8)
+  doc.text("Boyah Group - A remplir a chaque vidange", M, 16)
+  doc.text(new Date().toLocaleDateString("fr-FR"), W-M, 16, {align:"right"})
+  y = 28
+
+  // Infos vehicule
+  doc.setFillColor(243,244,246); doc.roundedRect(M,y,W-M*2,22,2,2,"F")
+  doc.setDrawColor(200,205,220); doc.roundedRect(M,y,W-M*2,22,2,2,"D")
+  const flds = [{label:"Immatriculation",x:M+4,val:immatriculation},{label:"Date",x:M+56,val:""},{label:"Kilometrage",x:M+102,val:""},{label:"Technicien",x:M+148,val:""}]
+  doc.setFont("helvetica","bold"); doc.setFontSize(7.5); doc.setTextColor(80,80,100)
+  for(const f of flds) {
+    doc.text(f.label,f.x,y+7)
+    doc.setDrawColor(120,120,150); doc.setLineWidth(0.4); doc.line(f.x,y+18,f.x+42,y+18)
+    if(f.val){doc.setFont("helvetica","normal");doc.setFontSize(8);doc.setTextColor(30,30,60);doc.text(f.val,f.x,y+17);doc.setFont("helvetica","bold");doc.setFontSize(7.5);doc.setTextColor(80,80,100)}
+  }
+  y += 28
+
+  // 1. Eclairage
+  sec("ECLAIRAGE", 202,138,4)
+  const ecl = [["Phares croisement","Phares route"],["Feux arriere","Feux de stop"],["Clignotants AV G","Clignotants AV D"],["Clignotants AR G","Clignotants AR D"],["Feux de recul","Feux de plaque"],["Feux de detresse","Feux brouillard"]]
+  for(const [a,b] of ecl) {
+    if(y>H-16) np()
+    doc.text(a,M+2,y); opt2(M+52,y,"Marche","Panne",20)
+    doc.text(b,M+100,y); opt2(M+150,y,"Marche","Panne",20)
+    doc.setDrawColor(220,225,235); doc.setLineWidth(0.2); doc.line(M,y+1.5,W-M,y+1.5); y+=6
+  }
+  y+=2
+
+  // 2. Carrosserie
+  sec("CARROSSERIE", 71,85,105)
+  for(const l of ["Face avant","Face arriere","Cote conducteur","Cote passager","Toit","Pare-brise","Vitres"])
+    row(l, ()=>opt3(M+70,y,"Bon","Mauvais","Tres mauvais"))
+  y+=2
+
+  // 3. Interieur
+  sec("INTERIEUR", 124,58,237)
+  for(const l of ["Sieges avant","Sieges arriere","Tableau de bord","Proprete generale"])
+    row(l, ()=>opt3(M+70,y,"Bon","Mauvais","Tres mauvais"))
+  for(const l of ["Climatisation","Autoradio"])
+    row(l, ()=>opt3(M+70,y,"Marche","Panne","Absent"))
+  row("Ceintures securite", ()=>opt2(M+70,y,"Complet","Incomplet",30))
+  y+=2
+
+  // 4. Mecanique
+  sec("MECANIQUE & MOTEUR", 234,88,12)
+  for(const l of ["Huile moteur","Liq. refroidissement","Liquide de frein","Lave-glace","Courroie accessoires","Filtre a air","Batterie"])
+    row(l, ()=>opt3(M+70,y,"OK","A surveiller","Critique"))
+  y+=2
+
+  // 5. Pneumatiques
+  sec("PNEUMATIQUES", 75,85,99)
+  for(const l of ["Pneu avant gauche","Pneu avant droit","Pneu arriere gauche","Pneu arriere droit"])
+    row(l, ()=>opt3(M+70,y,"Bon","Use","A changer"))
+  row("Pneu de secours", ()=>opt3(M+70,y,"Present","A changer","Absent"))
+  row("Pression generale", ()=>opt2(M+70,y,"OK","A verifier",28))
+  y+=2
+
+  // 6. Freinage
+  sec("FREINAGE", 220,38,38)
+  for(const l of ["Freins avant","Freins arriere"])
+    row(l, ()=>opt3(M+70,y,"OK","Use","Critique"))
+  row("Frein a main", ()=>opt2(M+70,y,"Marche","Panne",28))
+  y+=2
+
+  // 7. Documents
+  sec("DOCUMENTS", 20,184,166)
+  for(const l of ["Carte grise","Assurance","Controle technique"])
+    row(l, ()=>opt3(M+70,y,"Valide","Expire","Absent"))
+  y+=2
+
+  // 8. Equipements
+  sec("EQUIPEMENTS DE SECURITE", 67,56,202)
+  const eq = [["Extincteur","Triangle de signalisation"],["Cric + cles de roue","Cables de demarrage"]]
+  for(const [a,b] of eq) {
+    if(y>H-16) np()
+    doc.text(a,M+2,y); opt2(M+60,y,"Present","Absent",22)
+    doc.text(b,M+100,y); opt2(M+158,y,"Present","Absent",22)
+    doc.setDrawColor(220,225,235); doc.setLineWidth(0.2); doc.line(M,y+1.5,W-M,y+1.5); y+=6
+  }
+  y+=3
+
+  // Points vidange (checklist)
+  sec("POINTS DE VIDANGE - cocher si fait", 30,120,190)
+  const vp = [["Huile moteur","Filtre a huile"],["Filtre a air","Filtre a pollen"],["Liq. refroidissement","Huile de frein"],["Pneus",""]]
+  for(const [a,b] of vp) {
+    if(y>H-16) np()
+    cb(M+2,y); doc.text(a,M+7,y)
+    if(b){cb(M+100,y); doc.text(b,M+105,y)}
+    doc.setDrawColor(220,225,235); doc.setLineWidth(0.2); doc.line(M,y+1.5,W-M,y+1.5); y+=6
+  }
+
+  // Observations
+  y+=4; if(y>H-50) np()
+  doc.setFont("helvetica","bold"); doc.setFontSize(8); doc.setTextColor(40,40,60)
+  doc.text("OBSERVATIONS / REPARATIONS A PROGRAMMER", M, y)
+  y+=5; doc.setDrawColor(180,185,205); doc.setLineWidth(0.3)
+  for(let i=0;i<4;i++){doc.line(M,y,W-M,y); y+=7}
+  y+=4
+
+  // Signatures
+  if(y>H-25) np()
+  doc.setFont("helvetica","normal"); doc.setFontSize(7.5); doc.setTextColor(80,80,100)
+  const sy=y+8
+  doc.line(M,sy,M+55,sy); doc.text("Signature technicien",M,sy+4)
+  doc.line(M+80,sy,M+135,sy); doc.text("Signature responsable",M+80,sy+4)
+  doc.line(W-M-40,sy,W-M,sy); doc.text("Date",W-M-40,sy+4)
+
+  foot()
+  doc.save(`fiche_inspection${immatriculation?"_"+immatriculation:""}_${new Date().toISOString().split("T")[0]}.pdf`)
+  toast.success("Fiche d'inspection PDF generee")
+}
+

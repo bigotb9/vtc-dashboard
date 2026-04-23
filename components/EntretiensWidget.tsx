@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from "react"
 import {
   Droplets, Plus, Trash2, CalendarClock, AlertTriangle,
   CheckCircle2, XCircle, FileDown, ChevronDown, ChevronUp,
-  Lightbulb, Car, Sofa, Wrench, Circle, Gauge, FileText, Shield,
+  Lightbulb, Car, Sofa, Wrench, Circle, Gauge, FileText, Shield, Printer,
 } from "lucide-react"
 import { toast } from "@/lib/toast"
 import { motion, AnimatePresence } from "framer-motion"
@@ -268,6 +268,7 @@ export default function EntretiensWidget({ idVehicule, immatriculation }: { idVe
   const [saving,      setSaving]      = useState(false)
   const [expandedId,  setExpandedId]  = useState<string | null>(null)
   const [exporting,   setExporting]   = useState(false)
+  const [printingForm, setPrintingForm] = useState(false)
   const [pdfFrom,     setPdfFrom]     = useState("")
   const [pdfTo,       setPdfTo]       = useState("")
   const [showPdfOpts, setShowPdfOpts] = useState(false)
@@ -333,6 +334,15 @@ export default function EntretiensWidget({ idVehicule, immatriculation }: { idVe
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Fiche papier */}
+          <button onClick={async () => { setPrintingForm(true); const { exportFicheInspectionPdf } = await import("@/lib/exportPdf"); await exportFicheInspectionPdf(immatriculation); setPrintingForm(false) }}
+            disabled={printingForm}
+            title="Télécharger fiche d'inspection papier"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-gray-200 dark:border-[#1E2D45] text-xs font-semibold text-gray-500 hover:text-violet-600 hover:border-violet-300 dark:hover:border-violet-500/40 transition disabled:opacity-40">
+            {printingForm ? <span className="w-3.5 h-3.5 border-2 border-violet-500/30 border-t-violet-500 rounded-full animate-spin" /> : <Printer size={13} />}
+            Fiche papier
+          </button>
+
           {/* PDF */}
           <div className="relative">
             <button onClick={() => setShowPdfOpts(p => !p)} disabled={exporting || entretiens.length === 0}
