@@ -21,7 +21,6 @@ function drawTable(doc: jsPDF, {
 
   let y = startY
 
-  // ── En-tête de colonne ──
   doc.setFillColor(...headerBg)
   doc.rect(margin, y, pageW - margin * 2, headerH, "F")
   doc.setTextColor(255, 255, 255)
@@ -35,16 +34,13 @@ function drawTable(doc: jsPDF, {
   }
   y += headerH
 
-  // ── Lignes ──
   doc.setFont("helvetica", "normal")
   doc.setFontSize(7.5)
 
   for (let r = 0; r < rows.length; r++) {
-    // Saut de page
     if (y + rowH > pageH - 16) {
       doc.addPage()
       y = 20
-      // Ré-afficher l'en-tête
       doc.setFillColor(...headerBg)
       doc.rect(margin, y - headerH, pageW - margin * 2, headerH, "F")
       doc.setTextColor(255, 255, 255)
@@ -57,7 +53,6 @@ function drawTable(doc: jsPDF, {
       doc.setFont("helvetica", "normal")
     }
 
-    // Alternance couleur
     if (r % 2 === 0) {
       doc.setFillColor(246, 248, 255)
       doc.rect(margin, y, pageW - margin * 2, rowH, "F")
@@ -68,7 +63,6 @@ function drawTable(doc: jsPDF, {
     for (let i = 0; i < rows[r].length; i++) {
       const cell  = String(rows[r][i] ?? "—")
       const maxW  = colWidths[i] - 4
-      // Tronquer si trop long
       const truncated = doc.getStringUnitWidth(cell) * 7.5 / doc.internal.scaleFactor > maxW
         ? cell.slice(0, Math.floor(cell.length * maxW / (doc.getStringUnitWidth(cell) * 7.5 / doc.internal.scaleFactor))) + "…"
         : cell
@@ -76,7 +70,6 @@ function drawTable(doc: jsPDF, {
       cx += colWidths[i]
     }
 
-    // Bordure basse légère
     doc.setDrawColor(220, 220, 235)
     doc.line(margin, y + rowH, pageW - margin, y + rowH)
     y += rowH
@@ -119,17 +112,14 @@ export async function generatePdf({
   const pageW   = doc.internal.pageSize.getWidth()
   const logoB64 = await loadLogoBase64()
 
-  // ── Bandeau titre ──
   const bannerH = 30
   doc.setFillColor(99, 102, 241)
   doc.rect(0, 0, pageW, bannerH, "F")
 
-  // Logo (carré blanc arrondi simulé + image)
   const logoSize = 16
   const logoX    = 14
   const logoY    = (bannerH - logoSize) / 2
   if (logoB64) {
-    // Fond blanc arrondi derrière le logo
     doc.setFillColor(255, 255, 255)
     doc.roundedRect(logoX - 1, logoY - 1, logoSize + 2, logoSize + 2, 2, 2, "F")
     doc.addImage(logoB64, "PNG", logoX, logoY, logoSize, logoSize)
@@ -173,7 +163,6 @@ export async function generatePdf({
     }
   }
 
-  // ── Pied de page sur toutes les pages ──
   const pageCount = doc.getNumberOfPages()
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i)
@@ -209,7 +198,6 @@ export async function exportInsightsPdf(opts: {
 
     const sections = []
 
-    // Section résumé
     if (resumeExecutif) {
       sections.push({
         title:     "Résumé exécutif",
@@ -219,7 +207,6 @@ export async function exportInsightsPdf(opts: {
       })
     }
 
-    // Section recommandations
     if (recommandations.length) {
       sections.push({
         title:     `Recommandations (${recommandations.length})`,
@@ -229,7 +216,6 @@ export async function exportInsightsPdf(opts: {
       })
     }
 
-    // Section alertes
     if (alertes.length) {
       sections.push({
         title:     `Alertes Claude (${alertes.length})`,
@@ -239,7 +225,6 @@ export async function exportInsightsPdf(opts: {
       })
     }
 
-    // Plan 30j
     if (plan30j.length) {
       sections.push({
         title:     "Plan d'action 30 jours",
@@ -249,7 +234,6 @@ export async function exportInsightsPdf(opts: {
       })
     }
 
-    // Véhicules en retard
     if (retardVehicules.length) {
       sections.push({
         title:     `Véhicules en retard de paiement (${retardVehicules.length})`,
@@ -386,7 +370,7 @@ export async function exportVehiculeFichePdf(opts: {
   }
 }
 
-// toLocaleString("fr-FR") produit une espace insécable (\u00A0) que jsPDF/Helvetica
+// toLocaleString("fr-FR") produit une espace insécable ( ) que jsPDF/Helvetica
 // ne sait pas rendre. On utilise un regex pour forcer des espaces normaux.
 const fmt = (n: number) =>
   Math.round(Number(n || 0))
@@ -484,154 +468,295 @@ export async function exportChauffeursPdf(chauffeurs: {
   }
 }
 
-// ── Fiche d'inspection physique (formulaire papier) ────────────────────────────
+// ── Fiche d'inspection physique — version améliorée avec logo et couleurs ──────
 export async function exportFicheInspectionPdf(immatriculation = "") {
   const { jsPDF } = await import("jspdf")
+  const logo = await loadLogoBase64()
   const doc  = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" })
   const W = 210, H = 297, M = 12
   let y = M
 
-  // Helpers
-  const cb = (x: number, cy: number, s = 3.2) => {
-    doc.setDrawColor(100,100,120); doc.setLineWidth(0.3); doc.rect(x, cy-s+0.6, s, s)
+  type RGB = [number, number, number]
+
+  // ── Palette couleurs sections ──
+  const C = {
+    eclairage:   [180, 100, 0]   as RGB,
+    carrosserie: [51, 65, 85]    as RGB,
+    interieur:   [109, 40, 217]  as RGB,
+    mecanique:   [180, 55, 10]   as RGB,
+    pneus:       [30, 58, 138]   as RGB,
+    freinage:    [153, 27, 27]   as RGB,
+    documents:   [6, 120, 110]   as RGB,
+    equipements: [55, 48, 180]   as RGB,
+    vidange:     [12, 90, 160]   as RGB,
+    indigo:      [67, 56, 202]   as RGB,
   }
-  const opt2 = (x: number, cy: number, a: string, b: string, gap = 22) => {
-    cb(x,cy); doc.text(a,x+4,cy); cb(x+gap,cy); doc.text(b,x+gap+4,cy)
+
+  // ── Helpers ──
+  const sf = (r: number, g: number, b: number) => doc.setFillColor(r, g, b)
+  const sd = (r: number, g: number, b: number) => doc.setDrawColor(r, g, b)
+  const st = (r: number, g: number, b: number) => doc.setTextColor(r, g, b)
+
+  // Checkbox arrondie avec bordure coloree
+  const cb = ([r,g,b]: RGB, x: number, cy: number, s = 3.6) => {
+    sf(250, 250, 255); sd(r, g, b); doc.setLineWidth(0.45)
+    doc.roundedRect(x, cy - s + 0.8, s, s, 0.7, 0.7, "FD")
   }
-  const opt3 = (x: number, cy: number, a: string, b: string, c: string) => {
-    cb(x,cy); doc.text(a,x+4,cy); cb(x+26,cy); doc.text(b,x+30,cy); cb(x+56,cy); doc.text(c,x+60,cy)
+  // 2 options sur une ligne
+  const opt2 = (col: RGB, x: number, cy: number, a: string, b: string, gap = 26) => {
+    cb(col, x, cy); st(35, 35, 65); doc.text(a, x + 5, cy)
+    cb(col, x + gap, cy); doc.text(b, x + gap + 5, cy)
   }
+  // 3 options sur une ligne
+  const opt3 = (col: RGB, x: number, cy: number, a: string, b: string, c: string) => {
+    cb(col, x, cy);      st(35, 35, 65); doc.text(a, x + 5,    cy)
+    cb(col, x + 30, cy); doc.text(b, x + 35,   cy)
+    cb(col, x + 63, cy); doc.text(c, x + 68,   cy)
+  }
+
+  // Pied de page
   const foot = () => {
-    doc.setFont("helvetica","normal"); doc.setFontSize(6.5); doc.setTextColor(160,160,180)
-    doc.text("Boyah Group - Fiche inspection vehicule - Confidentiel", W/2, H-5, {align:"center"})
+    doc.setFont("helvetica", "normal"); doc.setFontSize(6.5); st(155, 155, 175)
+    doc.text("Boyah Group  -  Fiche inspection vehicule  -  Confidentiel", W / 2, H - 5, { align: "center" })
   }
-  const np = () => { doc.addPage(); y=M; foot() }
-  const sec = (label: string, r: number, g: number, b: number) => {
-    if(y>H-50) np()
-    doc.setFillColor(r,g,b); doc.roundedRect(M,y,W-M*2,6.5,1,1,"F")
-    doc.setFont("helvetica","bold"); doc.setFontSize(8); doc.setTextColor(255,255,255)
-    doc.text(label, M+3, y+4.5)
-    y+=9; doc.setFont("helvetica","normal"); doc.setFontSize(7.5); doc.setTextColor(40,40,60)
-  }
-  const row = (label: string, render: () => void) => {
-    if(y>H-16) np()
-    doc.text(label, M+2, y); render()
-    doc.setDrawColor(220,225,235); doc.setLineWidth(0.2); doc.line(M,y+1.5,W-M,y+1.5); y+=6
+  const np = () => { doc.addPage(); y = M + 2; foot() }
+
+  // Section header avec barre laterale + fond degrade
+  const sec = (label: string, col: RGB) => {
+    if (y > H - 52) np()
+    y += 4
+    const [r, g, b] = col
+    // Fond principal
+    sf(r, g, b); doc.rect(M, y, W - M * 2, 8, "F")
+    // Barre laterale plus foncee (accent)
+    sf(Math.max(0, r - 50), Math.max(0, g - 50), Math.max(0, b - 50))
+    doc.rect(M, y, 4.5, 8, "F")
+    // Lignes decoratives droite
+    sf(Math.min(255, r + 60), Math.min(255, g + 60), Math.min(255, b + 60))
+    doc.rect(W - M - 20, y, 20, 8, "F")
+    sf(Math.min(255, r + 30), Math.min(255, g + 30), Math.min(255, b + 30))
+    doc.rect(W - M - 35, y, 12, 8, "F")
+    // Texte
+    doc.setFont("helvetica", "bold"); doc.setFontSize(8.5); st(255, 255, 255)
+    doc.text(label, M + 8, y + 5.5)
+    y += 11; doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); st(35, 35, 65)
   }
 
-  // Titre
-  doc.setFillColor(79,70,229); doc.rect(0,0,W,22,"F")
-  doc.setFont("helvetica","bold"); doc.setFontSize(14); doc.setTextColor(255,255,255)
-  doc.text("FICHE D'INSPECTION VEHICULE", M, 10)
-  doc.setFont("helvetica","normal"); doc.setFontSize(8)
-  doc.text("Boyah Group - A remplir a chaque vidange", M, 16)
-  doc.text(new Date().toLocaleDateString("fr-FR"), W-M, 16, {align:"right"})
-  y = 28
-
-  // Infos vehicule
-  doc.setFillColor(243,244,246); doc.roundedRect(M,y,W-M*2,22,2,2,"F")
-  doc.setDrawColor(200,205,220); doc.roundedRect(M,y,W-M*2,22,2,2,"D")
-  const flds = [{label:"Immatriculation",x:M+4,val:immatriculation},{label:"Date",x:M+56,val:""},{label:"Kilometrage",x:M+102,val:""},{label:"Technicien",x:M+148,val:""}]
-  doc.setFont("helvetica","bold"); doc.setFontSize(7.5); doc.setTextColor(80,80,100)
-  for(const f of flds) {
-    doc.text(f.label,f.x,y+7)
-    doc.setDrawColor(120,120,150); doc.setLineWidth(0.4); doc.line(f.x,y+18,f.x+42,y+18)
-    if(f.val){doc.setFont("helvetica","normal");doc.setFontSize(8);doc.setTextColor(30,30,60);doc.text(f.val,f.x,y+17);doc.setFont("helvetica","bold");doc.setFontSize(7.5);doc.setTextColor(80,80,100)}
+  // Ligne item avec fond alterne couleur section
+  let _ri = 0
+  const row = (col: RGB, label: string, render: () => void) => {
+    if (y > H - 15) np()
+    const [r, g, b] = col
+    if (_ri % 2 === 0) {
+      sf(Math.min(255, r + 208), Math.min(255, g + 210), Math.min(255, b + 215))
+      doc.rect(M, y - 3.8, W - M * 2, 6.2, "F")
+    }
+    // Barre laterale fine coloree
+    sf(r, g, b); doc.rect(M, y - 3.8, 1.8, 6.2, "F")
+    st(35, 35, 65); doc.text(label, M + 4, y)
+    render()
+    sd(210, 215, 228); doc.setLineWidth(0.15); doc.line(M, y + 2.2, W - M, y + 2.2)
+    y += 6.5; _ri++
   }
-  y += 28
+
+  // ── PAGE 1 : TITRE + INFO + ECLAIRAGE + CARROSSERIE + INTERIEUR ──────────────
+
+  // Bandeau titre
+  const [ir, ig, ib] = C.indigo
+  sf(Math.max(0, ir - 20), Math.max(0, ig - 20), Math.max(0, ib - 20))
+  doc.rect(0, 0, W, 30, "F")
+  // Bande degrade gauche
+  sf(ir, ig, ib); doc.rect(0, 0, W * 0.6, 30, "F")
+  // Bande accent bas
+  sf(Math.min(255, ir + 80), Math.min(255, ig + 70), Math.min(255, ib + 60))
+  doc.rect(0, 27.5, W, 2.5, "F")
+  // Bande fine accent lumineuse
+  sf(200, 195, 255); doc.rect(0, 29.5, W, 0.8, "F")
+
+  // Logo
+  if (logo) {
+    sf(255, 255, 255)
+    doc.roundedRect(M - 1, 5, 20, 20, 2.5, 2.5, "F")
+    doc.addImage(logo, "PNG", M, 6, 18, 18)
+  }
+  const tx = logo ? M + 23 : M + 3
+  st(255, 255, 255)
+  doc.setFont("helvetica", "bold"); doc.setFontSize(15)
+  doc.text("FICHE D'INSPECTION VEHICULE", tx, 13)
+  doc.setFont("helvetica", "normal"); doc.setFontSize(8); st(215, 210, 255)
+  doc.text("Boyah Group  -  A remplir a chaque vidange", tx, 20)
+  doc.setFontSize(7.5); st(185, 180, 240)
+  doc.text(new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" }), W - M, 20, { align: "right" })
+  y = 36
+
+  // Bloc infos vehicule
+  sf(244, 245, 253); doc.roundedRect(M, y, W - M * 2, 26, 2, 2, "F")
+  sd(170, 175, 215); doc.setLineWidth(0.35); doc.roundedRect(M, y, W - M * 2, 26, 2, 2, "D")
+  // Barre superieure coloree
+  sf(ir, ig, ib); doc.roundedRect(M, y, W - M * 2, 5, 2, 2, "F")
+  doc.rect(M, y + 2.5, W - M * 2, 2.5, "F")
+  doc.setFont("helvetica", "bold"); doc.setFontSize(7); st(255, 255, 255)
+  doc.text("INFORMATIONS VEHICULE", M + 4, y + 3.8)
+
+  const flds = [
+    { label: "IMMATRICULATION", x: M + 4,   w: 42, val: immatriculation },
+    { label: "DATE",            x: M + 56,  w: 38, val: "" },
+    { label: "KILOMETRAGE",     x: M + 102, w: 38, val: "" },
+    { label: "TECHNICIEN",      x: M + 150, w: 46, val: "" },
+  ]
+  for (const f of flds) {
+    doc.setFont("helvetica", "bold"); doc.setFontSize(6.5); st(90, 85, 180)
+    doc.text(f.label, f.x, y + 12)
+    if (f.val) {
+      doc.setFont("helvetica", "bold"); doc.setFontSize(9); st(20, 20, 70)
+      doc.text(f.val, f.x, y + 22)
+    }
+    sd(140, 135, 200); doc.setLineWidth(0.5); doc.line(f.x, y + 23, f.x + f.w, y + 23)
+  }
+  y += 32
 
   // 1. Eclairage
-  sec("ECLAIRAGE", 202,138,4)
-  const ecl = [["Phares croisement","Phares route"],["Feux arriere","Feux de stop"],["Clignotants AV G","Clignotants AV D"],["Clignotants AR G","Clignotants AR D"],["Feux de recul","Feux de plaque"],["Feux de detresse","Feux brouillard"]]
-  for(const [a,b] of ecl) {
-    if(y>H-16) np()
-    doc.text(a,M+2,y); opt2(M+52,y,"Marche","Panne",20)
-    doc.text(b,M+100,y); opt2(M+150,y,"Marche","Panne",20)
-    doc.setDrawColor(220,225,235); doc.setLineWidth(0.2); doc.line(M,y+1.5,W-M,y+1.5); y+=6
+  sec("ECLAIRAGE", C.eclairage); _ri = 0
+  const eclPairs: [string, string][] = [
+    ["Phares croisement", "Phares route"],
+    ["Feux arriere", "Feux de stop"],
+    ["Clignotants AV gauche", "Clignotants AV droit"],
+    ["Clignotants AR gauche", "Clignotants AR droit"],
+    ["Feux de recul", "Feux de plaque"],
+    ["Feux de detresse", "Feux brouillard"],
+  ]
+  for (const [a, b] of eclPairs) {
+    if (y > H - 15) np()
+    const [r, g, bv] = C.eclairage
+    if (_ri % 2 === 0) {
+      sf(Math.min(255,r+208), Math.min(255,g+195), Math.min(255,bv+210))
+      doc.rect(M, y - 3.8, W - M * 2, 6.2, "F")
+    }
+    sf(r, g, bv); doc.rect(M, y - 3.8, 1.8, 6.2, "F")
+    st(35, 35, 65); doc.text(a, M + 4, y)
+    opt2(C.eclairage, M + 58, y, "Marche", "Panne", 22)
+    doc.text(b, M + 108, y)
+    opt2(C.eclairage, M + 155, y, "Marche", "Panne", 22)
+    sd(210, 215, 228); doc.setLineWidth(0.15); doc.line(M, y + 2.2, W - M, y + 2.2)
+    y += 6.5; _ri++
   }
-  y+=2
 
   // 2. Carrosserie
-  sec("CARROSSERIE", 71,85,105)
-  for(const l of ["Face avant","Face arriere","Cote conducteur","Cote passager","Toit","Pare-brise","Vitres"])
-    row(l, ()=>opt3(M+70,y,"Bon","Mauvais","Tres mauvais"))
-  y+=2
+  sec("CARROSSERIE", C.carrosserie); _ri = 0
+  for (const l of ["Face avant", "Face arriere", "Cote conducteur", "Cote passager", "Toit", "Pare-brise", "Vitres"])
+    row(C.carrosserie, l, () => opt3(C.carrosserie, M + 72, y, "Bon", "Mauvais", "Tres mauvais"))
 
   // 3. Interieur
-  sec("INTERIEUR", 124,58,237)
-  for(const l of ["Sieges avant","Sieges arriere","Tableau de bord","Proprete generale"])
-    row(l, ()=>opt3(M+70,y,"Bon","Mauvais","Tres mauvais"))
-  for(const l of ["Climatisation","Autoradio"])
-    row(l, ()=>opt3(M+70,y,"Marche","Panne","Absent"))
-  row("Ceintures securite", ()=>opt2(M+70,y,"Complet","Incomplet",30))
-  y+=2
+  sec("INTERIEUR", C.interieur); _ri = 0
+  for (const l of ["Sieges avant", "Sieges arriere", "Tableau de bord", "Proprete generale"])
+    row(C.interieur, l, () => opt3(C.interieur, M + 72, y, "Bon", "Mauvais", "Tres mauvais"))
+  for (const l of ["Climatisation", "Autoradio"])
+    row(C.interieur, l, () => opt3(C.interieur, M + 72, y, "Marche", "Panne", "Absent"))
+  row(C.interieur, "Ceintures securite", () => opt2(C.interieur, M + 72, y, "Complet", "Incomplet", 30))
 
   // 4. Mecanique
-  sec("MECANIQUE & MOTEUR", 234,88,12)
-  for(const l of ["Huile moteur","Liq. refroidissement","Liquide de frein","Lave-glace","Courroie accessoires","Filtre a air","Batterie"])
-    row(l, ()=>opt3(M+70,y,"OK","A surveiller","Critique"))
-  y+=2
+  sec("MECANIQUE & MOTEUR", C.mecanique); _ri = 0
+  for (const l of ["Huile moteur", "Liq. refroidissement", "Liquide de frein", "Lave-glace", "Courroie accessoires", "Filtre a air", "Batterie"])
+    row(C.mecanique, l, () => opt3(C.mecanique, M + 72, y, "OK", "A surveiller", "Critique"))
 
   // 5. Pneumatiques
-  sec("PNEUMATIQUES", 75,85,99)
-  for(const l of ["Pneu avant gauche","Pneu avant droit","Pneu arriere gauche","Pneu arriere droit"])
-    row(l, ()=>opt3(M+70,y,"Bon","Use","A changer"))
-  row("Pneu de secours", ()=>opt3(M+70,y,"Present","A changer","Absent"))
-  row("Pression generale", ()=>opt2(M+70,y,"OK","A verifier",28))
-  y+=2
+  sec("PNEUMATIQUES", C.pneus); _ri = 0
+  for (const l of ["Pneu avant gauche", "Pneu avant droit", "Pneu arriere gauche", "Pneu arriere droit"])
+    row(C.pneus, l, () => opt3(C.pneus, M + 72, y, "Bon", "Use", "A changer"))
+  row(C.pneus, "Pneu de secours", () => opt3(C.pneus, M + 72, y, "Present", "A changer", "Absent"))
+  row(C.pneus, "Pression generale", () => opt2(C.pneus, M + 72, y, "OK", "A verifier", 28))
 
   // 6. Freinage
-  sec("FREINAGE", 220,38,38)
-  for(const l of ["Freins avant","Freins arriere"])
-    row(l, ()=>opt3(M+70,y,"OK","Use","Critique"))
-  row("Frein a main", ()=>opt2(M+70,y,"Marche","Panne",28))
-  y+=2
+  sec("FREINAGE", C.freinage); _ri = 0
+  for (const l of ["Freins avant", "Freins arriere"])
+    row(C.freinage, l, () => opt3(C.freinage, M + 72, y, "OK", "Use", "Critique"))
+  row(C.freinage, "Frein a main", () => opt2(C.freinage, M + 72, y, "Marche", "Panne", 28))
 
   // 7. Documents
-  sec("DOCUMENTS", 20,184,166)
-  for(const l of ["Carte grise","Assurance","Controle technique"])
-    row(l, ()=>opt3(M+70,y,"Valide","Expire","Absent"))
-  y+=2
+  sec("DOCUMENTS", C.documents); _ri = 0
+  for (const l of ["Carte grise", "Assurance", "Controle technique"])
+    row(C.documents, l, () => opt3(C.documents, M + 72, y, "Valide", "Expire", "Absent"))
 
-  // 8. Equipements
-  sec("EQUIPEMENTS DE SECURITE", 67,56,202)
-  const eq = [["Extincteur","Triangle de signalisation"],["Cric + cles de roue","Cables de demarrage"]]
-  for(const [a,b] of eq) {
-    if(y>H-16) np()
-    doc.text(a,M+2,y); opt2(M+60,y,"Present","Absent",22)
-    doc.text(b,M+100,y); opt2(M+158,y,"Present","Absent",22)
-    doc.setDrawColor(220,225,235); doc.setLineWidth(0.2); doc.line(M,y+1.5,W-M,y+1.5); y+=6
+  // 8. Equipements securite
+  sec("EQUIPEMENTS DE SECURITE", C.equipements); _ri = 0
+  const eqPairs: [string, string][] = [
+    ["Extincteur", "Triangle de signalisation"],
+    ["Cric + cles de roue", "Cables de demarrage"],
+  ]
+  for (const [a, b] of eqPairs) {
+    if (y > H - 15) np()
+    const [r, g, bv] = C.equipements
+    if (_ri % 2 === 0) {
+      sf(Math.min(255,r+188), Math.min(255,g+192), Math.min(255,bv+72))
+      doc.rect(M, y - 3.8, W - M * 2, 6.2, "F")
+    }
+    sf(r, g, bv); doc.rect(M, y - 3.8, 1.8, 6.2, "F")
+    st(35, 35, 65); doc.text(a, M + 4, y)
+    opt2(C.equipements, M + 70, y, "Present", "Absent", 24)
+    doc.text(b, M + 112, y)
+    opt2(C.equipements, M + 162, y, "Present", "Absent", 24)
+    sd(210, 215, 228); doc.setLineWidth(0.15); doc.line(M, y + 2.2, W - M, y + 2.2)
+    y += 6.5; _ri++
   }
-  y+=3
 
-  // Points vidange (checklist)
-  sec("POINTS DE VIDANGE - cocher si fait", 30,120,190)
-  const vp = [["Huile moteur","Filtre a huile"],["Filtre a air","Filtre a pollen"],["Liq. refroidissement","Huile de frein"],["Pneus",""]]
-  for(const [a,b] of vp) {
-    if(y>H-16) np()
-    cb(M+2,y); doc.text(a,M+7,y)
-    if(b){cb(M+100,y); doc.text(b,M+105,y)}
-    doc.setDrawColor(220,225,235); doc.setLineWidth(0.2); doc.line(M,y+1.5,W-M,y+1.5); y+=6
+  // 9. Points de vidange
+  sec("POINTS DE VIDANGE  -  cocher si effectue", C.vidange); _ri = 0
+  const vpPairs: [string, string][] = [
+    ["Huile moteur", "Filtre a huile"],
+    ["Filtre a air", "Filtre a pollen"],
+    ["Liq. refroidissement", "Huile de frein"],
+    ["Pneus", ""],
+  ]
+  for (const [a, b] of vpPairs) {
+    if (y > H - 15) np()
+    const [r, g, bv] = C.vidange
+    if (_ri % 2 === 0) {
+      sf(Math.min(255,r+210), Math.min(255,g+205), 255)
+      doc.rect(M, y - 3.8, W - M * 2, 6.2, "F")
+    }
+    sf(r, g, bv); doc.rect(M, y - 3.8, 1.8, 6.2, "F")
+    cb(C.vidange, M + 4, y, 4); st(35, 35, 65); doc.text(a, M + 10, y)
+    if (b) { cb(C.vidange, M + 104, y, 4); doc.text(b, M + 110, y) }
+    sd(210, 215, 228); doc.setLineWidth(0.15); doc.line(M, y + 2.2, W - M, y + 2.2)
+    y += 6.5; _ri++
   }
 
   // Observations
-  y+=4; if(y>H-50) np()
-  doc.setFont("helvetica","bold"); doc.setFontSize(8); doc.setTextColor(40,40,60)
-  doc.text("OBSERVATIONS / REPARATIONS A PROGRAMMER", M, y)
-  y+=5; doc.setDrawColor(180,185,205); doc.setLineWidth(0.3)
-  for(let i=0;i<4;i++){doc.line(M,y,W-M,y); y+=7}
-  y+=4
+  y += 5; if (y > H - 55) np()
+  sf(248, 245, 255); doc.roundedRect(M, y, W - M * 2, 42, 2, 2, "F")
+  sd(175, 165, 228); doc.setLineWidth(0.3); doc.roundedRect(M, y, W - M * 2, 42, 2, 2, "D")
+  const [vr, vg, vb] = C.interieur
+  sf(vr, vg, vb); doc.roundedRect(M, y, W - M * 2, 5.5, 2, 2, "F"); doc.rect(M, y + 3, W - M * 2, 2.5, "F")
+  doc.setFont("helvetica", "bold"); doc.setFontSize(7.5); st(255, 255, 255)
+  doc.text("OBSERVATIONS / REPARATIONS A PROGRAMMER", M + 4, y + 4.3)
+  y += 9
+  sd(185, 178, 225); doc.setLineWidth(0.28)
+  for (let i = 0; i < 4; i++) { doc.line(M + 2, y, W - M - 2, y); y += 7.5 }
+  y += 5
 
   // Signatures
-  if(y>H-25) np()
-  doc.setFont("helvetica","normal"); doc.setFontSize(7.5); doc.setTextColor(80,80,100)
-  const sy=y+8
-  doc.line(M,sy,M+55,sy); doc.text("Signature technicien",M,sy+4)
-  doc.line(M+80,sy,M+135,sy); doc.text("Signature responsable",M+80,sy+4)
-  doc.line(W-M-40,sy,W-M,sy); doc.text("Date",W-M-40,sy+4)
+  if (y > H - 30) np()
+  const sigDefs = [
+    { label: "Signature technicien",  x: M,          w: 55 },
+    { label: "Signature responsable", x: M + 75,     w: 55 },
+    { label: "Date",                  x: W - M - 48, w: 48 },
+  ]
+  for (const s of sigDefs) {
+    sf(244, 245, 253); doc.roundedRect(s.x, y, s.w, 18, 1.5, 1.5, "F")
+    sd(170, 175, 215); doc.setLineWidth(0.3); doc.roundedRect(s.x, y, s.w, 18, 1.5, 1.5, "D")
+    sf(vr, vg, vb); doc.roundedRect(s.x, y, s.w, 5, 1.5, 1.5, "F"); doc.rect(s.x, y + 2.5, s.w, 2.5, "F")
+    doc.setFont("helvetica", "bold"); doc.setFontSize(6.5); st(255, 255, 255)
+    doc.text(s.label, s.x + 3, y + 4)
+  }
 
-  foot()
-  doc.save(`fiche_inspection${immatriculation?"_"+immatriculation:""}_${new Date().toISOString().split("T")[0]}.pdf`)
+  // Pied de page toutes les pages
+  const count = doc.getNumberOfPages()
+  for (let i = 1; i <= count; i++) {
+    doc.setPage(i); foot()
+    doc.setFontSize(6.5); st(155, 155, 175)
+    doc.text(`Page ${i} / ${count}`, W - M, H - 5, { align: "right" })
+  }
+
+  doc.save(`fiche_inspection${immatriculation ? "_" + immatriculation : ""}_${new Date().toISOString().split("T")[0]}.pdf`)
   toast.success("Fiche d'inspection PDF generee")
 }
-
