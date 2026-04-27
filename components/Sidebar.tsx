@@ -9,7 +9,7 @@ import { ThemeToggle } from "@/components/theme-toggle"
 import {
   LayoutDashboard, Car, Users, Wallet, TrendingDown,
   Brain, Settings, Truck, ChevronDown, ChevronRight,
-  LogOut, Building2, UserCheck, Activity, PanelLeftClose, PanelLeftOpen
+  LogOut, Building2, UserCheck, Activity, PanelLeftClose, PanelLeftOpen, MapPin
 } from "lucide-react"
 import { useProfile } from "@/hooks/useProfile"
 import { motion, AnimatePresence } from "framer-motion"
@@ -219,10 +219,11 @@ export default function Sidebar() {
 
         <SectionLabel label="Navigation" collapsed={collapsed} />
         <div className="space-y-0.5">
-          <NavLink href="/dashboard"  label="Dashboard"  icon={LayoutDashboard} exact collapsed={collapsed} />
-          <NavLink href="/vehicules"  label="Véhicules"  icon={Car}             collapsed={collapsed} />
-          <NavLink href="/chauffeurs" label="Chauffeurs" icon={Users}           collapsed={collapsed} />
-          <NavLink href="/clients"    label="Clients"    icon={UserCheck}       collapsed={collapsed} />
+          <NavLink href="/dashboard"         label="Dashboard"  icon={LayoutDashboard} exact collapsed={collapsed} />
+          <NavLink href="/vehicules"         label="Véhicules"  icon={Car}             collapsed={collapsed} />
+          <NavLink href="/vehicules/carte"   label="GPS Live"   icon={MapPin}          collapsed={collapsed} />
+          <NavLink href="/chauffeurs"        label="Chauffeurs" icon={Users}           collapsed={collapsed} />
+          <NavLink href="/clients"           label="Clients"    icon={UserCheck}       collapsed={collapsed} />
         </div>
 
         <SectionLabel label="Finances" collapsed={collapsed} />
