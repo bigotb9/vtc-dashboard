@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { logActivity } from "@/lib/logActivity"
 import { supabase } from "@/lib/supabaseClient"
 
 export async function POST(req: NextRequest) {
@@ -31,6 +32,9 @@ export async function POST(req: NextRequest) {
 
     const { error } = await supabase.from("chauffeurs").insert([body])
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 400 })
+
+    const token = req.headers.get("authorization")?.replace("Bearer ", "") || ""
+    await logActivity({ token, action: "create_chauffeur", entity: body.nom || null, details: { nom: body.nom, numero_wave: body.numero_wave } })
 
     return NextResponse.json({ success: true })
   } catch (err) {

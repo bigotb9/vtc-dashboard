@@ -25,13 +25,19 @@ const ACTION_LABELS: Record<string, string> = {
   update_user:        "Modification d'utilisateur",
   disable_user:       "Désactivation d'utilisateur",
   update_permission:  "Modification de permission",
-  create_driver:      "Création de prestataire",
-  create_vehicle:     "Création de véhicule",
+  create_driver:      "Création de prestataire Yango",
+  create_vehicle:     "Création de véhicule Yango",
+  create_vehicule:    "Création de véhicule",
+  create_chauffeur:   "Création de chauffeur",
+  create_depense:     "Création de dépense",
+  create_recette:     "Saisie de recette",
+  create_entretien:   "Vidange enregistrée",
   sync_orders:        "Synchronisation commandes",
   export_pdf:         "Export PDF",
   manage_depenses:    "Gestion dépenses",
-  manage_expenses:    "Gestion dépenses",   // rétrocompat
+  manage_expenses:    "Gestion dépenses",
   manage_recettes:    "Gestion recettes",
+  attribution_recalcul: "Recalcul attributions",
 }
 
 const ACTION_CATEGORIES = [
