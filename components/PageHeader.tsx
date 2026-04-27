@@ -21,14 +21,14 @@ const ACCENT: Record<AccentColor, { grad: string; ring: string; icon: string }> 
 export function PageHeader({
   title,
   subtitle,
-  icon: Icon,
+  icon,
   actions,
   breadcrumb,
   accent = "indigo",
 }: {
   title: string
   subtitle?: string
-  icon?: React.ElementType
+  icon?: React.ReactNode          // ReactNode (pas ElementType) pour éviter le passage de fonction depuis Server Components
   actions?: React.ReactNode
   breadcrumb?: BreadcrumbItem[]
   accent?: AccentColor
@@ -43,9 +43,9 @@ export function PageHeader({
       className="flex flex-wrap items-start justify-between gap-4"
     >
       <div className="flex items-start gap-3 min-w-0">
-        {Icon && (
+        {icon && (
           <div className={`flex-shrink-0 w-10 h-10 rounded-xl bg-gradient-to-br ${a.grad} ring-1 ${a.ring} flex items-center justify-center mt-0.5`}>
-            <Icon size={18} className={a.icon} />
+            {icon}
           </div>
         )}
         <div className="min-w-0">
