@@ -12,13 +12,22 @@ export type Profile = {
 }
 
 export type Permission =
-  | "create_driver"
-  | "create_vehicle"
-  | "sync_orders"
-  | "view_reports"
+  // Dashboard
+  | "view_dashboard"
+  // Finances
+  | "view_recettes" | "manage_recettes"
+  | "view_depenses" | "manage_depenses" | "manage_expenses"  // expenses = rétrocompat
   | "export_pdf"
-  | "manage_expenses"
-  | "manage_recettes"
+  // Flotte
+  | "view_chauffeurs" | "create_chauffeur" | "edit_chauffeur" | "delete_chauffeur"
+  | "view_vehicules"  | "create_vehicle"   | "edit_vehicle"   | "delete_vehicle"
+  | "manage_clients"
+  // Boyah Transport
+  | "view_boyah_dashboard" | "view_orders" | "sync_orders" | "create_driver"
+  // Système
+  | "view_ai_insights" | "generate_ai_insights"
+  | "view_journal"     | "manage_users"
+  | "view_reports"
 
 // Récupère le profil de l'utilisateur connecté
 export async function getMyProfile(): Promise<Profile | null> {
@@ -32,19 +41,10 @@ export async function getMyProfile(): Promise<Profile | null> {
   return data as Profile | null
 }
 
-// Récupère toutes les permissions d'un rôle
-export async function getRolePermissions(role: UserRole): Promise<Record<Permission, boolean>> {
+// Récupère toutes les permissions d'un rôle (le directeur a tout par défaut)
+export async function getRolePermissions(role: UserRole): Promise<Record<string, boolean>> {
   if (role === "directeur") {
-    // Le directeur a tout
-    return {
-      create_driver:   true,
-      create_vehicle:  true,
-      sync_orders:     true,
-      view_reports:    true,
-      export_pdf:      true,
-      manage_expenses: true,
-      manage_recettes: true,
-    }
+    return new Proxy({}, { get: () => true }) as Record<string, boolean>
   }
   const { data } = await supabase
     .from("role_permissions")
@@ -53,7 +53,7 @@ export async function getRolePermissions(role: UserRole): Promise<Record<Permiss
 
   const perms: Record<string, boolean> = {}
   for (const row of data || []) perms[row.action] = row.allowed
-  return perms as Record<Permission, boolean>
+  return perms
 }
 
 // Log une action utilisateur

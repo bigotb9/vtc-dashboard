@@ -8,7 +8,7 @@ import { getRolePermissions } from "@/lib/profile"
 type UseProfileResult = {
   profile:    Profile | null
   loading:    boolean
-  can:        (action: Permission) => boolean
+  can:        (action: Permission | string) => boolean
   isDirecteur: boolean
   isAdmin:     boolean
 }
@@ -16,6 +16,7 @@ type UseProfileResult = {
 export function useProfile(): UseProfileResult {
   const [profile, setProfile]   = useState<Profile | null>(null)
   const [perms, setPerms]       = useState<Record<string, boolean>>({})
+  const [isDir, setIsDir]       = useState(false)
   const [loading, setLoading]   = useState(true)
 
   useEffect(() => {
@@ -31,8 +32,11 @@ export function useProfile(): UseProfileResult {
 
       if (p) {
         setProfile(p as Profile)
-        const rolePerms = await getRolePermissions(p.role)
-        setPerms(rolePerms)
+        setIsDir(p.role === "directeur")
+        if (p.role !== "directeur") {
+          const rolePerms = await getRolePermissions(p.role)
+          setPerms(rolePerms)
+        }
       }
       setLoading(false)
     }
@@ -42,8 +46,9 @@ export function useProfile(): UseProfileResult {
   return {
     profile,
     loading,
-    can:         (action: Permission) => perms[action] === true,
-    isDirecteur: profile?.role === "directeur",
+    // Le directeur a tout, sinon on consulte la matrice
+    can:         (action) => isDir || perms[action] === true,
+    isDirecteur: isDir,
     isAdmin:     profile?.role === "admin",
   }
 }

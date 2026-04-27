@@ -138,7 +138,7 @@ export default function Sidebar({ forceShow = false }: { forceShow?: boolean }) 
   const router   = useRouter()
   const navRef   = useRef<HTMLDivElement>(null)
   const { collapsed, toggle } = useSidebar()
-  const { isDirecteur } = useProfile()
+  const { isDirecteur, can } = useProfile()
 
   type AuthUser = { email?: string; user_metadata?: { name?: string; display_name?: string } }
   const [user, setUser] = useState<AuthUser | null>(null)
@@ -220,17 +220,17 @@ export default function Sidebar({ forceShow = false }: { forceShow?: boolean }) 
 
         <SectionLabel label="Navigation" collapsed={collapsed} />
         <div className="space-y-0.5">
-          <NavLink href="/dashboard"         label="Dashboard"  icon={LayoutDashboard} exact collapsed={collapsed} />
-          <NavLink href="/vehicules"         label="Véhicules"  icon={Car}             collapsed={collapsed} />
-          <NavLink href="/vehicules/carte"   label="GPS Live"   icon={MapPin}          collapsed={collapsed} />
-          <NavLink href="/chauffeurs"        label="Chauffeurs" icon={Users}           collapsed={collapsed} />
-          <NavLink href="/clients"           label="Clients"    icon={UserCheck}       collapsed={collapsed} />
+          {can("view_dashboard")  && <NavLink href="/dashboard"       label="Dashboard"  icon={LayoutDashboard} exact collapsed={collapsed} />}
+          {can("view_vehicules")  && <NavLink href="/vehicules"       label="Véhicules"  icon={Car}             collapsed={collapsed} />}
+          {can("view_vehicules")  && <NavLink href="/vehicules/carte" label="GPS Live"   icon={MapPin}          collapsed={collapsed} />}
+          {can("view_chauffeurs") && <NavLink href="/chauffeurs"      label="Chauffeurs" icon={Users}           collapsed={collapsed} />}
+          {can("manage_clients")  && <NavLink href="/clients"         label="Clients"    icon={UserCheck}       collapsed={collapsed} />}
         </div>
 
         <SectionLabel label="Finances" collapsed={collapsed} />
         <div className="space-y-0.5">
-          <NavLink href="/recettes" label="Recettes" icon={Wallet}      collapsed={collapsed} />
-          <NavLink href="/depenses" label="Dépenses" icon={TrendingDown} collapsed={collapsed} />
+          {can("view_recettes") && <NavLink href="/recettes" label="Recettes" icon={Wallet}      collapsed={collapsed} />}
+          {can("view_depenses") && <NavLink href="/depenses" label="Dépenses" icon={TrendingDown} collapsed={collapsed} />}
         </div>
 
         <SectionLabel label="Services" collapsed={collapsed} />
@@ -312,9 +312,9 @@ export default function Sidebar({ forceShow = false }: { forceShow?: boolean }) 
 
         <SectionLabel label="Système" collapsed={collapsed} />
         <div className="space-y-0.5">
-          <NavLink href="/ai-insights-boyah-group" label="AI Insights" icon={Brain}    collapsed={collapsed} />
-          {isDirecteur && <NavLink href="/journal-activite" label="Journal"  icon={Activity} collapsed={collapsed} />}
-          <NavLink href="/parametres" label="Paramètres" icon={Settings}  collapsed={collapsed} />
+          {can("view_ai_insights") && <NavLink href="/ai-insights-boyah-group" label="AI Insights" icon={Brain}    collapsed={collapsed} />}
+          {isDirecteur            && <NavLink href="/journal-activite"        label="Journal"     icon={Activity} collapsed={collapsed} />}
+          <NavLink href="/parametres" label="Paramètres" icon={Settings} collapsed={collapsed} />
         </div>
       </div>
 

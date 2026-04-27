@@ -12,7 +12,7 @@ import AlerteDocuments from "@/components/AlerteDocuments"
 import CaChart from "@/components/CaChart"
 import CaDepensesChart from "@/components/CaDepensesChart"
 import ErrorBoundary from "@/components/ErrorBoundary"
-import DashboardRefresh from "@/components/DashboardRefresh"
+import DashboardActions from "@/components/DashboardActions"
 import TachesSuiviWidget from "@/components/TachesSuiviWidget"
 import SuiviVersementsWidget from "@/components/SuiviVersementsWidget"
 
@@ -37,23 +37,7 @@ export default async function DashboardPage() {
         subtitle={today}
         icon={<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-indigo-400"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>}
         accent="indigo"
-        actions={
-          <>
-            <Link href="/chauffeurs/create"
-              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-600 dark:text-gray-400 bg-white dark:bg-[#0D1424] border border-gray-200 dark:border-[#1E2D45] rounded-xl hover:text-indigo-600 dark:hover:text-indigo-400 hover:border-indigo-300 dark:hover:border-indigo-500/40 transition shadow-sm">
-              + Chauffeur
-            </Link>
-            <Link href="/vehicules/create"
-              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-600 dark:text-gray-400 bg-white dark:bg-[#0D1424] border border-gray-200 dark:border-[#1E2D45] rounded-xl hover:text-indigo-600 dark:hover:text-indigo-400 hover:border-indigo-300 dark:hover:border-indigo-500/40 transition shadow-sm">
-              + Véhicule
-            </Link>
-            <Link href="/recettes/create"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition shadow-sm shadow-indigo-500/25 ring-1 ring-indigo-500/30">
-              + Recette
-            </Link>
-            <DashboardRefresh />
-          </>
-        }
+        actions={<DashboardActions />}
       />
 
       {/* KPI */}

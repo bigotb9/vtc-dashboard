@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
 import { logActivity } from "@/lib/logActivity"
+import { requirePermission } from "@/lib/requirePermission"
 import { supabase } from "@/lib/supabaseClient"
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = await requirePermission(req, "create_chauffeur")
+    if (!auth.ok) return auth.response
+
     const body = await req.json()
 
     if (!body || typeof body !== "object") {
