@@ -1,7 +1,9 @@
 export const dynamic = 'force-dynamic'
 
 import Link from "next/link"
+import { LayoutDashboard } from "lucide-react"
 import { supabase } from "@/lib/supabaseClient"
+import { PageHeader } from "@/components/PageHeader"
 import KpiCards from "@/components/KpiCards"
 import RecettesTable from "@/components/RecettesTable"
 import DepensesCategorieChart from "@/components/DepensesCategorieChart"
@@ -31,27 +33,29 @@ export default async function DashboardPage() {
     <div className="space-y-6 animate-in">
 
       {/* HEADER */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Dashboard</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-500 mt-0.5 capitalize">{today}</p>
-        </div>
-        <div className="flex items-center gap-3 flex-wrap">
-          <Link href="/chauffeurs/create"
-            className="hidden sm:inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-gray-600 dark:text-gray-400 bg-white dark:bg-[#0D1424] border border-gray-200 dark:border-[#1E2D45] rounded-xl hover:text-indigo-600 dark:hover:text-indigo-400 hover:border-indigo-300 dark:hover:border-indigo-500/40 transition shadow-sm">
-            + Chauffeur
-          </Link>
-          <Link href="/vehicules/create"
-            className="hidden sm:inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-gray-600 dark:text-gray-400 bg-white dark:bg-[#0D1424] border border-gray-200 dark:border-[#1E2D45] rounded-xl hover:text-indigo-600 dark:hover:text-indigo-400 hover:border-indigo-300 dark:hover:border-indigo-500/40 transition shadow-sm">
-            + Véhicule
-          </Link>
-          <Link href="/recettes/create"
-            className="hidden sm:inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition shadow-sm shadow-indigo-500/20">
-            + Recette
-          </Link>
-          <DashboardRefresh />
-        </div>
-      </div>
+      <PageHeader
+        title="Dashboard"
+        subtitle={today}
+        icon={LayoutDashboard}
+        accent="indigo"
+        actions={
+          <>
+            <Link href="/chauffeurs/create"
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-600 dark:text-gray-400 bg-white dark:bg-[#0D1424] border border-gray-200 dark:border-[#1E2D45] rounded-xl hover:text-indigo-600 dark:hover:text-indigo-400 hover:border-indigo-300 dark:hover:border-indigo-500/40 transition shadow-sm">
+              + Chauffeur
+            </Link>
+            <Link href="/vehicules/create"
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-600 dark:text-gray-400 bg-white dark:bg-[#0D1424] border border-gray-200 dark:border-[#1E2D45] rounded-xl hover:text-indigo-600 dark:hover:text-indigo-400 hover:border-indigo-300 dark:hover:border-indigo-500/40 transition shadow-sm">
+              + Véhicule
+            </Link>
+            <Link href="/recettes/create"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition shadow-sm shadow-indigo-500/25 ring-1 ring-indigo-500/30">
+              + Recette
+            </Link>
+            <DashboardRefresh />
+          </>
+        }
+      />
 
       {/* KPI */}
       <ErrorBoundary label="Impossible de charger les KPIs">
