@@ -133,7 +133,7 @@ function ToggleBtn({ label, icon: Icon, open, onToggle }: {
 }
 
 // ── Main Sidebar ──────────────────────────────────────────────────────────────
-export default function Sidebar() {
+export default function Sidebar({ forceShow = false }: { forceShow?: boolean }) {
   const pathname = usePathname()
   const router   = useRouter()
   const navRef   = useRef<HTMLDivElement>(null)
@@ -166,9 +166,10 @@ export default function Sidebar() {
     <motion.div
       animate={{ width: collapsed ? 64 : 256 }}
       transition={{ type: "spring", stiffness: 300, damping: 30 }}
-      className="fixed top-0 left-0 h-screen flex flex-col
+      className={`fixed top-0 left-0 h-screen flex-col
         bg-white dark:bg-[#060B14]
-        border-r border-gray-200 dark:border-[#1A2235] z-50 overflow-hidden"
+        border-r border-gray-200 dark:border-[#1A2235] z-50 overflow-hidden
+        ${forceShow ? "flex" : "hidden md:flex"}`}
     >
 
       {/* LOGO + COLLAPSE TOGGLE */}

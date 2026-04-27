@@ -47,7 +47,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
         <div className="fixed inset-0 z-50 flex md:hidden">
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSidebarOpen(false)} />
           <div className="relative w-64 z-50">
-            <Sidebar />
+            <Sidebar forceShow />
           </div>
         </div>
       )}
