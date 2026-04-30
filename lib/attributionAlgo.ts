@@ -210,25 +210,46 @@ export function attribuerRecettes(
         })
         attributedDays.add(backISO)
       } else {
-        // Jour ouvré + cible prise → bascule vers le 1er jour ouvré dispo à partir de dWave
-        let finalDay = new Date(dWave)
-        let finalISO = dWaveISO
-        let safety = 15
-        while (attributedDays.has(finalISO) && safety > 0) {
-          finalDay.setUTCDate(finalDay.getUTCDate() + 1)
-          while (isSunday(finalDay)) {
-            finalDay.setUTCDate(finalDay.getUTCDate() + 1)
-          }
-          finalISO = toISODate(finalDay)
-          safety--
+        // Jour ouvré + cible prise → tente d'abord de rattraper un jour passé non attribué
+        // (cas typique : 2 recettes le même jour pour le même véhicule, dont une en retard
+        // pour un samedi/vendredi resté vide). Fenêtre : 6 jours ouvrés en arrière (~1 semaine).
+        let backDay = new Date(targetDay)
+        let backISO: string | null = null
+        for (let i = 0; i < 6; i++) {
+          backDay = prevWorkday(backDay)
+          const iso = toISODate(backDay)
+          if (!attributedDays.has(iso)) { backISO = iso; break }
         }
-        attributions.push({
-          id_recette: r.id, id_vehicule,
-          jour_exploitation: finalISO,
-          montant_attribue: montant,
-          type_attribution: "jour_meme",
-        })
-        attributedDays.add(finalISO)
+
+        if (backISO) {
+          attributions.push({
+            id_recette: r.id, id_vehicule,
+            jour_exploitation: backISO,
+            montant_attribue: montant,
+            type_attribution: "retard",
+          })
+          attributedDays.add(backISO)
+        } else {
+          // Tous les jours récents sont attribués → bascule en avant à partir de dWave
+          let finalDay = new Date(dWave)
+          let finalISO = dWaveISO
+          let safety = 15
+          while (attributedDays.has(finalISO) && safety > 0) {
+            finalDay.setUTCDate(finalDay.getUTCDate() + 1)
+            while (isSunday(finalDay)) {
+              finalDay.setUTCDate(finalDay.getUTCDate() + 1)
+            }
+            finalISO = toISODate(finalDay)
+            safety--
+          }
+          attributions.push({
+            id_recette: r.id, id_vehicule,
+            jour_exploitation: finalISO,
+            montant_attribue: montant,
+            type_attribution: "jour_meme",
+          })
+          attributedDays.add(finalISO)
+        }
       }
     }
   }
