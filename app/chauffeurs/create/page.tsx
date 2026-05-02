@@ -190,7 +190,7 @@ export default function CreateChauffeur() {
         ...(permisVersoUrl  ? { photo_permis_verso: permisVersoUrl } : {}),
       }
 
-      const res  = await fetch("/api/chauffeurs/create", { method: "POST", body: JSON.stringify(payload) })
+      const res  = await authFetch("/api/chauffeurs/create", { method: "POST", body: JSON.stringify(payload) })
       const data = await res.json()
 
       if (data.success) {

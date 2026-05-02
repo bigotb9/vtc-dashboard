@@ -108,7 +108,7 @@ export default function CreateDepenseForm({ vehicules }: Props) {
       date_fin_immobilisation:   form.immobilisation && form.date_fin_immobilisation   ? form.date_fin_immobilisation   : null,
     }
 
-    const res  = await fetch("/api/depenses/create", { method: "POST", body: JSON.stringify(payload) })
+    const res  = await authFetch("/api/depenses/create", { method: "POST", body: JSON.stringify(payload) })
     const data = await res.json()
     setLoading(false)
 

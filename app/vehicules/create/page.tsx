@@ -151,7 +151,7 @@ export default function CreateVehicule() {
         ...(versoUrl ? { carte_grise_verso:  versoUrl } : {}),
       }
 
-      const res  = await fetch("/api/vehicules/create", { method: "POST", body: JSON.stringify(payload) })
+      const res  = await authFetch("/api/vehicules/create", { method: "POST", body: JSON.stringify(payload) })
       const data = await res.json()
 
       if (data.success) {

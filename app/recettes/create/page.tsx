@@ -321,7 +321,7 @@ export default function CreateRecette() {
     }
     if (form.id_recette !== "") payload.id_recette = Number(form.id_recette)
 
-    const res = await fetch("/api/recettes/create", {
+    const res = await authFetch("/api/recettes/create", {
       method: "POST",
       body: JSON.stringify(payload),
     })
