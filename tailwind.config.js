@@ -1,5 +1,9 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
+  // Dark mode contrôlé par la classe "dark" sur <html>, posée par next-themes.
+  // Sans ça, Tailwind utiliserait prefers-color-scheme (l'OS) et le toggle
+  // n'aurait aucun effet visuel.
+  darkMode: "class",
   content: [
     "./app/**/*.{js,ts,jsx,tsx}",
     "./components/**/*.{js,ts,jsx,tsx}",
