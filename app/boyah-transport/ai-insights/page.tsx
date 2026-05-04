@@ -50,13 +50,68 @@ function HealthRing({ score }: { score: number }) {
   )
 }
 
-function WhatsAppBtn({ phone, name, type }: { phone: string; name: string; type: "risque" | "inactif" }) {
-  const msgs = {
-    risque:  `Bonjour ${name}, nous avons remarqué une baisse de votre activité sur Boyah Transport. N'hésitez pas à reprendre les courses Yango — notre équipe est disponible. 🚗`,
-    inactif: `Bonjour ${name}, cela fait un moment que nous ne vous avons pas vu sur Boyah Transport ! Vos accès Yango sont toujours actifs. Reprenez les courses dès aujourd'hui. 💪`,
+/**
+ * Construit un message WhatsApp personnalisé selon le statut + les vraies
+ * données du chauffeur. Structure constante :
+ *   1. Salutation perso       2. Constat factuel (chiffres)
+ *   3. Question/préoccupation  4. Offre d'aide concrète    5. Signature
+ */
+function buildWhatsAppMessage(d: DriverStat): string {
+  const prenom   = (d.nom || "").split(" ")[0] || "vous"
+  const lastDate = d.lastActivity
+    ? new Date(d.lastActivity).toLocaleDateString("fr-FR", { day: "numeric", month: "long" })
+    : null
+  const moyParCourse = d.totalCourses > 0 ? Math.round(d.totalRevenue / d.totalCourses) : 0
+
+  if (d.status === "risque") {
+    return (
+      `Bonjour ${prenom},\n\n` +
+      `Nous suivons de près votre activité sur Yango et nous remarquons une baisse cette semaine — ` +
+      `vous aviez réalisé ${d.coursesMois} course${d.coursesMois > 1 ? "s" : ""} ce mois ` +
+      `(moyenne de ${fmt(moyParCourse)} F par course), ` +
+      `mais aucune depuis ${lastDate || "plusieurs jours"}.\n\n` +
+      `Y a-t-il un souci avec le véhicule, l'application ou autre chose ? ` +
+      `Notre équipe est disponible pour vous aider à reprendre rapidement et améliorer vos revenus.\n\n` +
+      `Pouvez-vous nous rappeler ou nous dire ce qui se passe ?\n\n` +
+      `— L'équipe Boyah Transport`
+    )
   }
-  const tel = phone.replace(/\s+/g, "").replace(/^\+/, "")
-  const url = `https://wa.me/${tel}?text=${encodeURIComponent(msgs[type])}`
+
+  if (d.status === "inactif") {
+    if (d.totalCourses === 0) {
+      return (
+        `Bonjour ${prenom},\n\n` +
+        `Vous êtes enregistré sur Boyah Transport via Yango mais nous n'avons pas encore vu votre première course. ` +
+        `Notre équipe est là pour vous accompagner : prise en main de l'application, conseils sur les zones rentables, etc.\n\n` +
+        `Quand pouvez-vous démarrer ? On peut vous appeler dès aujourd'hui.\n\n` +
+        `— L'équipe Boyah Transport`
+      )
+    }
+    return (
+      `Bonjour ${prenom},\n\n` +
+      `Cela fait un moment que vous n'avez plus fait de course sur Yango ` +
+      `(dernière course le ${lastDate || "il y a plus d'un mois"}). ` +
+      `Au total vous avez réalisé ${d.totalCourses} course${d.totalCourses > 1 ? "s" : ""} pour ${fmt(d.totalRevenue)} F — ` +
+      `vos accès Yango sont toujours actifs.\n\n` +
+      `Que s'est-il passé ? Si vous rencontrez un blocage (véhicule, paiement, app), nous pouvons vous aider.\n\n` +
+      `Répondez-nous, on s'occupe du reste.\n\n` +
+      `— L'équipe Boyah Transport`
+    )
+  }
+
+  // Actif : encouragement
+  return (
+    `Bonjour ${prenom},\n\n` +
+    `Bravo pour votre activité ! ${d.coursesWeek} course${d.coursesWeek > 1 ? "s" : ""} cette semaine, ` +
+    `${d.coursesMois} ce mois, pour ${fmt(d.totalRevenue)} F de chiffre cumulé. ` +
+    `Continuez sur cette lancée.\n\n` +
+    `— L'équipe Boyah Transport`
+  )
+}
+
+function WhatsAppBtn({ driver }: { driver: DriverStat }) {
+  const tel = (driver.telephone || "").replace(/\s+/g, "").replace(/^\+/, "")
+  const url = `https://wa.me/${tel}?text=${encodeURIComponent(buildWhatsAppMessage(driver))}`
   return (
     <a href={url} target="_blank" rel="noopener noreferrer"
       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-500/10 hover:bg-green-500/20 text-green-400 text-xs font-medium transition border border-green-500/20">
@@ -393,7 +448,7 @@ export default function AIInsightsBoyahTransport() {
                       <td className="px-4 py-3 text-xs text-gray-400">{fdate(ds.lastActivity)}</td>
                       <td className="px-4 py-3">
                         {tel && tel !== "N/A" && (ds.status === "risque" || ds.status === "inactif")
-                          ? <WhatsAppBtn phone={tel} name={ds.nom} type={ds.status} />
+                          ? <WhatsAppBtn driver={ds} />
                           : <span className="text-[10px] text-gray-300 dark:text-gray-600">—</span>
                         }
                       </td>
@@ -423,7 +478,7 @@ export default function AIInsightsBoyahTransport() {
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">{ds.nom || "—"}</p>
                   <p className="text-xs text-gray-400">{statusCfg(ds.status).label} · {ds.coursesMois} courses ce mois · dernière activité : {fdate(ds.lastActivity)}</p>
                 </div>
-                <WhatsAppBtn phone={ds.telephone} name={ds.nom} type={ds.status as "risque" | "inactif"} />
+                <WhatsAppBtn driver={ds} />
               </div>
             ))}
           </div>
