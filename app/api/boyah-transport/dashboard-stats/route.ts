@@ -42,10 +42,20 @@ export async function GET() {
     const todayStr   = now.toISOString().slice(0, 10)
     const monthStr   = now.toISOString().slice(0, 7)
     const weekAgoStr = new Date(now.getTime() - 7  * 86400000).toISOString().slice(0, 10)
-    const COMMISSION = 0.025
+    // Commission Boyah Transport sur les courses Yango. Configurable via env
+    // YANGO_COMMISSION_RATE (ex: "0.025" pour 2.5%, "0.05" pour 5%).
+    const COMMISSION = Number(process.env.YANGO_COMMISSION_RATE || 0.025)
+
+    // Yango utilise plusieurs status pour les annulations : on les regroupe.
+    const isCancelled = (s: string | null | undefined) =>
+      !!s && (s === "cancelled" || s === "failed" || s.startsWith("cancel"))
+    // En cours = ni complétée ni annulée (driving, waiting, assigning, etc.)
+    const isInFlight = (s: string | null | undefined) =>
+      !!s && s !== "complete" && !isCancelled(s)
 
     const completed = orders.filter(o => o.status === "complete")
-    const cancelled = orders.filter(o => o.status === "cancelled")
+    const cancelled = orders.filter(o => isCancelled(o.status))
+    const inFlight  = orders.filter(o => isInFlight(o.status))
 
     const price = (o: RawOrder) => Number(o.raw?.price || 0)
 
@@ -96,16 +106,22 @@ export async function GET() {
       .slice(0, 10)
       .map(d => ({ ...d, revenue: Math.round(d.revenue), commission: Math.round(d.revenue * COMMISSION) }))
 
-    // Top véhicules
-    const vehicleMap: Record<string, { courses: number; revenue: number }> = {}
+    // Top véhicules — groupé par IMMATRICULATION (pas par modèle).
+    // Affichage : "31021WWCI · Toyota Yaris" si possible.
+    const vehicleMap: Record<string, { name: string; courses: number; revenue: number }> = {}
     completed.forEach(o => {
-      const k = o.raw?.car?.brand_model || (o.raw?.car?.brand ? `${o.raw.car.brand} ${o.raw.car.model}` : null) || "Inconnu"
-      if (!vehicleMap[k]) vehicleMap[k] = { courses: 0, revenue: 0 }
-      vehicleMap[k].courses++
-      vehicleMap[k].revenue += price(o)
+      const num   = o.raw?.car?.number || ""
+      const model = o.raw?.car?.brand_model || (o.raw?.car?.brand ? `${o.raw.car.brand} ${o.raw.car.model || ""}`.trim() : "")
+      const key   = num || model || "Inconnu"
+      const display = num
+        ? (model ? `${num} · ${model}` : num)
+        : (model || "Inconnu")
+      if (!vehicleMap[key]) vehicleMap[key] = { name: display, courses: 0, revenue: 0 }
+      vehicleMap[key].courses++
+      vehicleMap[key].revenue += price(o)
     })
-    const topVehicles = Object.entries(vehicleMap)
-      .map(([name, d]) => ({ name, ...d, revenue: Math.round(d.revenue) }))
+    const topVehicles = Object.values(vehicleMap)
+      .map(d => ({ ...d, revenue: Math.round(d.revenue) }))
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 6)
 
@@ -152,8 +168,15 @@ export async function GET() {
         orders:          orders.length,
         completed:       completed.length,
         cancelled:       cancelled.length,
-        completionRate:  orders.length > 0 ? Math.round(completed.length / orders.length * 100) : 0,
+        inFlight:        inFlight.length,
+        // Taux de complétion : on EXCLUT les courses en cours du dénominateur
+        // (sinon le taux est artificiellement bas car les en-cours seront soit
+        // complétées soit annulées plus tard, on ne sait pas encore).
+        completionRate:  (completed.length + cancelled.length) > 0
+          ? Math.round(completed.length / (completed.length + cancelled.length) * 100)
+          : 0,
         avgOrderValue:   completed.length > 0 ? Math.round(revTotal / completed.length) : 0,
+        commissionRate:  COMMISSION,
       },
       revenue: {
         today: Math.round(revToday),

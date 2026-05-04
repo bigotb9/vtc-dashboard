@@ -18,7 +18,7 @@ import { shouldAutoSync, runQuickSync, runFullSync } from "@/lib/yangoSync"
 type Stats = {
   ok:     boolean
   period: { from: string | null; to: string | null }
-  totals: { orders: number; completed: number; cancelled: number; completionRate: number; avgOrderValue: number }
+  totals: { orders: number; completed: number; cancelled: number; inFlight?: number; completionRate: number; avgOrderValue: number; commissionRate?: number }
   revenue: { today: number; week: number; month: number; total: number; prevWeek: number; trendWeekPct: number | null; especes: number; sanEspeces: number }
   commission: { today: number; week: number; month: number; total: number }
   charts: {
@@ -277,25 +277,29 @@ export default function BoyahDashboardPage() {
             </div>
           </div>
           <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={charts.daily} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+            <AreaChart data={charts.daily} margin={{ top: 5, right: 8, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="gR" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%"  stopColor="#10b981" stopOpacity={0.25} />
                   <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                 </linearGradient>
                 <linearGradient id="gC" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor="#8b5cf6" stopOpacity={0.25} />
+                  <stop offset="5%"  stopColor="#8b5cf6" stopOpacity={0.35} />
                   <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" className="dark:[&>line]:stroke-[#1E2D45]" />
               <XAxis dataKey="label" tick={{ fontSize: 9, fill: "#9ca3af" }} axisLine={false} tickLine={false} interval={4} />
-              <YAxis tick={{ fontSize: 9, fill: "#9ca3af" }} axisLine={false} tickLine={false} tickFormatter={v => `${(v / 1000).toFixed(0)}k`} width={32} />
+              {/* Axe gauche : Revenus (échelle large) */}
+              <YAxis yAxisId="left"  tick={{ fontSize: 9, fill: "#10b981" }} axisLine={false} tickLine={false} tickFormatter={v => `${(v / 1000).toFixed(0)}k`} width={36} />
+              {/* Axe droit : Commissions (échelle resserrée → courbe lisible) */}
+              <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 9, fill: "#8b5cf6" }} axisLine={false} tickLine={false} tickFormatter={v => `${(v / 1000).toFixed(0)}k`} width={36} />
               <Tooltip content={<ChartTooltip />} />
-              <Area type="monotone" dataKey="revenus" stroke="#10b981" strokeWidth={2} fill="url(#gR)" dot={false} />
-              <Area type="monotone" dataKey="comm"    stroke="#8b5cf6" strokeWidth={2} fill="url(#gC)" dot={false} />
+              <Area yAxisId="left"  type="monotone" dataKey="revenus" stroke="#10b981" strokeWidth={2} fill="url(#gR)" dot={false} />
+              <Area yAxisId="right" type="monotone" dataKey="comm"    stroke="#8b5cf6" strokeWidth={2} fill="url(#gC)" dot={false} />
             </AreaChart>
           </ResponsiveContainer>
+          <p className="text-[10px] text-gray-400 mt-1.5 text-center">Axe vert = revenus · Axe violet = commissions (échelles séparées pour lisibilité)</p>
         </div>
 
         {/* Répartition statuts */}
