@@ -134,6 +134,7 @@ export default function CreateChauffeur() {
   const [form, setForm] = useState({
     nom:                    "",
     numero_wave:            "",
+    numero_wave_2:          "",
     numero_permis:          "",
     numero_cni:             "",
     situation_matrimoniale: "",
@@ -177,6 +178,7 @@ export default function CreateChauffeur() {
       const payload: Record<string, unknown> = {
         nom:                    form.nom.trim(),
         numero_wave:            form.numero_wave.trim()            || null,
+        numero_wave_2:          form.numero_wave_2?.trim()         || null,
         numero_permis:          form.numero_permis.trim()          || null,
         numero_cni:             form.numero_cni.trim()             || null,
         situation_matrimoniale: form.situation_matrimoniale        || null,
@@ -280,11 +282,19 @@ export default function CreateChauffeur() {
                   value={form.nom} onChange={e => set("nom", e.target.value)} />
               </Field>
 
-              <Field label="Numéro Wave">
+              <Field label="Numéro Wave principal">
                 <div className="relative">
                   <Phone size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input type="text" placeholder="+225 XX XX XX XX XX" className={`${inp} pl-9`}
                     value={form.numero_wave} onChange={e => set("numero_wave", e.target.value)} />
+                </div>
+              </Field>
+
+              <Field label="Numéro Wave secondaire" hint="Optionnel — si le chauffeur utilise un 2ème compte Wave pour ses versements">
+                <div className="relative">
+                  <Phone size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input type="text" placeholder="+225 XX XX XX XX XX (optionnel)" className={`${inp} pl-9`}
+                    value={form.numero_wave_2 ?? ""} onChange={e => set("numero_wave_2", e.target.value)} />
                 </div>
               </Field>
 

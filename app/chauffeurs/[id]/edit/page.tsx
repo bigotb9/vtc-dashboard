@@ -101,6 +101,7 @@ export default function EditChauffeur() {
   // Champs texte
   const [nom,                   setNom]                   = useState("")
   const [numeroWave,             setNumeroWave]            = useState("")
+  const [numeroWave2,            setNumeroWave2]           = useState("")
   const [numeroPermis,           setNumeroPermis]          = useState("")
   const [numeroCni,              setNumeroCni]             = useState("")
   const [situationMatrimoniale,  setSituationMatrimoniale] = useState("")
@@ -131,6 +132,7 @@ export default function EditChauffeur() {
         if (!data) return
         setNom(data.nom ?? "")
         setNumeroWave(data.numero_wave ?? "")
+        setNumeroWave2(data.numero_wave_2 ?? "")
         setNumeroPermis(data.numero_permis ?? "")
         setNumeroCni(data.numero_cni ?? "")
         setSituationMatrimoniale(data.situation_matrimoniale ?? "")
@@ -178,7 +180,8 @@ export default function EditChauffeur() {
         body: JSON.stringify({
           id,
           nom:                    nom.trim(),
-          numero_wave:            numeroWave.trim()   || null,
+          numero_wave:            numeroWave.trim()    || null,
+          numero_wave_2:          numeroWave2.trim()   || null,
           numero_permis:          numeroPermis.trim() || null,
           numero_cni:             numeroCni.trim()    || null,
           situation_matrimoniale: situationMatrimoniale || null,
@@ -270,9 +273,14 @@ export default function EditChauffeur() {
         </Field>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="Numéro Wave / Téléphone">
+          <Field label="Numéro Wave principal">
             <input value={numeroWave} onChange={e => setNumeroWave(e.target.value)} placeholder="+225 07 00 00 00 00" className={inputCls} />
           </Field>
+          <Field label="Numéro Wave secondaire" hint="Si le chauffeur utilise un 2ème compte Wave">
+            <input value={numeroWave2} onChange={e => setNumeroWave2(e.target.value)} placeholder="+225 XX XX XX XX XX (optionnel)" className={inputCls} />
+          </Field>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="Numéro garant">
             <input value={numeroGarant} onChange={e => setNumeroGarant(e.target.value)} placeholder="+225 07 00 00 00 00" className={inputCls} />
           </Field>

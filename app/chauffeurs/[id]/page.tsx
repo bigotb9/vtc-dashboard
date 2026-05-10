@@ -247,6 +247,9 @@ export default async function ChauffeurPage({
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <InfoRow icon={Phone}       color="bg-blue-500"    label="Numéro Wave"    value={chauffeur.numero_wave} />
+          {chauffeur.numero_wave_2 && (
+            <InfoRow icon={Phone}     color="bg-blue-400"    label="Wave secondaire" value={chauffeur.numero_wave_2} />
+          )}
           <InfoRow icon={Home}        color="bg-teal-500"    label="Domicile"       value={chauffeur.domicile} />
           <InfoRow icon={ShieldCheck} color="bg-orange-500"  label="Garant"         value={chauffeur.numero_garant} />
           <InfoRow icon={MessageSquare} color="bg-purple-500" label="Commentaire"  value={chauffeur.commentaire} />
