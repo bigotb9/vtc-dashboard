@@ -42,9 +42,10 @@ export async function POST() {
     )
 
     // 2. Charger les chauffeurs pour matcher par téléphone (last 8 digits)
+    // numero_wave_2 = numéro secondaire (ex: second compte Wave du même chauffeur)
     const { data: chauffeurs } = await sb
       .from("chauffeurs")
-      .select("id_chauffeur, numero_wave")
+      .select("id_chauffeur, numero_wave, numero_wave_2")
 
     // 3. Charger TOUTES les affectations (historique inclus)
     const { data: allAff } = await sb
@@ -87,10 +88,15 @@ export async function POST() {
     }
 
     // Index chauffeur par téléphone (last 8 digits)
+    // Supporte jusqu'à 2 numéros Wave par chauffeur (numero_wave + numero_wave_2).
+    // Si un chauffeur a un numéro secondaire (compte Wave différent), ses
+    // versements faits depuis ce numéro seront bien rattachés.
     const chByPhone = new Map<string, number>()
     for (const c of chauffeurs || []) {
-      const p = normPhone8(c.numero_wave)
-      if (p) chByPhone.set(p, c.id_chauffeur)
+      const p1 = normPhone8(c.numero_wave)
+      if (p1) chByPhone.set(p1, c.id_chauffeur)
+      const p2 = normPhone8((c as Record<string, unknown>).numero_wave_2 as string)
+      if (p2) chByPhone.set(p2, c.id_chauffeur)
     }
 
     // 4. Enrichir les recettes avec id_vehicule selon la date du versement
