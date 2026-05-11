@@ -4,11 +4,20 @@
 
 
 /* ── Base ── */
-html { scroll-behavior: smooth; }
+html {
+  scroll-behavior: smooth;
+  /* Fond sombre par défaut pour éviter le flash blanc avant hydration.
+     En mode clair, les pages authentifiées couvrent le body avec bg-gray-50. */
+  background-color: #060B14;
+}
 body {
-  background-color: #f1f5f9;
+  background-color: #060B14;
   -webkit-font-smoothing: antialiased;
   font-family: var(--font-geist), system-ui, sans-serif;
+}
+/* Mode clair : le body prend le fond gris pour les pages authentifiées */
+:root:not(.dark) body {
+  background-color: #f1f5f9;
 }
 
 /* Chiffres et montants en monospace Geist */
