@@ -7,6 +7,7 @@ import AuthGuard from "@/components/AuthGuard"
 import { ThemeProvider } from "next-themes"
 import { SidebarProvider, useSidebar } from "@/lib/SidebarContext"
 import { useEffect, useState } from "react"
+import { usePathname } from "next/navigation"
 import PageTransition from "@/components/PageTransition"
 import Toaster from "@/components/Toaster"
 import MobileNav from "@/components/MobileNav"
@@ -17,6 +18,9 @@ const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono"
 
 function SidebarSpacer() {
   const { collapsed } = useSidebar()
+  const pathname = usePathname()
+  // Sur la page de login (/) la sidebar est masquée : pas d'espace à réserver
+  if (pathname === "/") return null
   return (
     <div
       className="hidden md:block flex-shrink-0 transition-all duration-300"
