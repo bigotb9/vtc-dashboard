@@ -77,6 +77,22 @@ export default function SuiviVersementsWidget() {
     && casesToday.some(c => c.statut === "jour_ferie_auto")
 
   const alertesHier = data?.cases.filter(c => c.date === yesterday && (c.statut === "manquant" || c.statut === "paye_insuffisant")) || []
+  // Patch 21/05/2026 - Bug 2 + complément 22/05/2026 + correctif 22/05/2026 :
+  // remplacement du composant AlertesPaiements (logique placeholder cassée) par
+  // 2 sous-sections jumelées affichant les immatriculations versées / à recouvrer.
+  // Métier VTC : un chauffeur verse aujourd'hui la recette de la veille -> on
+  // filtre sur jour_exploitation = HIER (et non aujourd'hui) pour le pilotage
+  // du recouvrement quotidien.
+  const aRecouvrerHier = data?.cases.filter(c =>
+    c.date === yesterday && (c.statut === "manquant" || c.statut === "paye_insuffisant")
+  ) || []
+  const versesHier = data?.cases.filter(c =>
+    c.date === yesterday && (
+      c.statut === "paye_complet" ||
+      c.statut === "paye_justifie" ||
+      c.statut === "jour_ferie_auto"
+    )
+  ) || []
   const enCoursAuj  = casesToday.filter(c => c.statut === "en_cours").length
   const payesAuj    = casesToday.filter(c => c.statut === "paye_complet").length
   const insuffAuj   = casesToday.filter(c => c.statut === "paye_insuffisant").length
@@ -253,6 +269,95 @@ export default function SuiviVersementsWidget() {
                 <ChevronRight size={14} className="text-red-400" />
               </motion.div>
             </Link>
+          )}
+
+          {/* Versements pour hier : Versés / À recouvrer (correctif 22/05/2026 :
+              filtre yesterday au lieu de today — métier VTC : versement J = recettes J-1) */}
+          {(versesHier.length > 0 || aRecouvrerHier.length > 0) && (
+            <div className="space-y-3 border-t border-gray-100 dark:border-[#1E2D45] pt-3">
+              <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                Versements pour hier
+              </p>
+
+              {/* Sous-section Versés */}
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
+                  Versés ({versesHier.length})
+                </p>
+                {versesHier.length === 0 ? (
+                  <p className="text-[11px] text-gray-400 dark:text-gray-500 italic px-2 py-1">
+                    Aucun versement reçu pour le moment.
+                  </p>
+                ) : (
+                  <div className="space-y-1 max-h-[140px] overflow-y-auto pr-1">
+                    {versesHier.map((c, i) => (
+                      <motion.div
+                        key={`verse-hier-${c.immatriculation}-${c.date}`}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.03 }}
+                        className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-gray-50 dark:hover:bg-white/[0.02] transition"
+                      >
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 size={11} className="text-emerald-500 flex-shrink-0" />
+                          <span className="font-mono text-xs font-bold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-white/10 px-1.5 py-0.5 rounded">
+                            {c.immatriculation}
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                          {c.statut === "jour_ferie_auto"
+                            ? "Férié"
+                            : c.statut === "paye_justifie"
+                              ? "Justifié"
+                              : `${Math.round(c.montant_recu).toLocaleString("fr-FR")} F`
+                          }
+                        </span>
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Sous-section À recouvrer */}
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-bold text-red-500 dark:text-red-400 uppercase tracking-wider">
+                  À recouvrer ({aRecouvrerHier.length})
+                </p>
+                {aRecouvrerHier.length === 0 ? (
+                  <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-500/5 border border-emerald-100 dark:border-emerald-500/20">
+                    <CheckCircle2 size={11} className="text-emerald-500 flex-shrink-0" />
+                    <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-semibold">
+                      Tous les véhicules ont versé.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-1 max-h-[140px] overflow-y-auto pr-1">
+                    {aRecouvrerHier.map((c, i) => (
+                      <motion.div
+                        key={`recouv-hier-${c.immatriculation}-${c.date}`}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.04 }}
+                        className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-gray-50 dark:hover:bg-white/[0.02] transition"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className={`w-1.5 h-1.5 rounded-full ${c.statut === "manquant" ? "bg-red-500" : "bg-amber-500"}`} />
+                          <span className="font-mono text-xs font-bold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-white/10 px-1.5 py-0.5 rounded">
+                            {c.immatriculation}
+                          </span>
+                        </div>
+                        <span className={`text-[10px] font-semibold ${c.statut === "manquant" ? "text-red-500" : "text-amber-600 dark:text-amber-400"}`}>
+                          {c.statut === "manquant"
+                            ? "Pas versé"
+                            : `${Math.round(c.montant_recu).toLocaleString("fr-FR")}/${Math.round(c.montant_attendu).toLocaleString("fr-FR")}`
+                          }
+                        </span>
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           )}
 
           {/* Dernières alertes */}
