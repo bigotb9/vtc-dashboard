@@ -6,8 +6,12 @@ import { PageHeader } from "@/components/PageHeader"
 import KpiCards from "@/components/KpiCards"
 import RecettesTable from "@/components/RecettesTable"
 import DepensesCategorieChart from "@/components/DepensesCategorieChart"
-import PaiementVehiculesChart from "@/components/PaiementVehiculesChart"
-import AlertesPaiements from "@/components/AlertesPaiements"
+// PaiementVehiculesChart retire le 22/05/2026 : remplace par grid 3 widgets
+// (Marge vehicules + Bilan cash net + Depenses categorie pleine largeur).
+import MargeVehiculesWidget from "@/components/MargeVehiculesWidget"
+import BilanCashNetWidget from "@/components/BilanCashNetWidget"
+// AlertesPaiements supprimé le 21/05/2026 (Bug 2 : logique placeholder cassée).
+// La liste des véhicules en retard du jour est désormais affichée dans SuiviVersementsWidget.
 import AlerteDocuments from "@/components/AlerteDocuments"
 import CaChart from "@/components/CaChart"
 import CaDepensesChart from "@/components/CaDepensesChart"
@@ -23,8 +27,7 @@ export default async function DashboardPage() {
     .select("*")
     .order("Horodatage", { ascending: false })
     .limit(20)
-  const { data: depenses }          = await supabase.from("vue_depenses_categories").select("*")
-  const { data: paiementVehicules } = await supabase.from("vue_voitures_payees").select("*")
+  const { data: depenses } = await supabase.from("vue_depenses_categories").select("*")
 
   const today = new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
 
@@ -60,17 +63,19 @@ export default async function DashboardPage() {
         <RecettesTable recettes={recettes || []} />
       </ErrorBoundary>
 
-      {/* ANALYTICS */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <ErrorBoundary label="Impossible de charger les dépenses par catégorie">
-          <DepensesCategorieChart data={depenses || []} />
+      {/* ANALYTICS — 2 widgets synthese en haut, DepensesCategorieChart pleine largeur en bas */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <ErrorBoundary label="Impossible de charger la marge par véhicule">
+          <MargeVehiculesWidget />
         </ErrorBoundary>
-        <ErrorBoundary label="Impossible de charger les paiements véhicules">
-          <PaiementVehiculesChart data={paiementVehicules || []} />
+        <ErrorBoundary label="Impossible de charger le bilan cash net">
+          <BilanCashNetWidget />
         </ErrorBoundary>
-        <ErrorBoundary label="Impossible de charger les alertes paiements">
-          <AlertesPaiements data={paiementVehicules || []} />
-        </ErrorBoundary>
+        <div className="lg:col-span-2">
+          <ErrorBoundary label="Impossible de charger les dépenses par catégorie">
+            <DepensesCategorieChart data={depenses || []} />
+          </ErrorBoundary>
+        </div>
       </div>
 
       {/* SUIVI VERSEMENTS */}
