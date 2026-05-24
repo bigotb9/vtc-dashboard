@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { motion } from "framer-motion"
+import { motion, AnimatePresence } from "framer-motion"
 import {
   ClipboardCheck, AlertTriangle, CheckCircle2, Clock,
-  ChevronRight, RefreshCw, Sparkles,
+  ChevronRight, ChevronDown, RefreshCw, Sparkles,
 } from "lucide-react"
 import { toast } from "@/lib/toast"
 
@@ -38,6 +38,10 @@ export default function SuiviVersementsWidget() {
   const [loading,  setLoading]  = useState(true)
   const [data,     setData]     = useState<Response | null>(null)
   const [recalcul, setRecalcul] = useState(false)
+  // Refonte 23/05/2026 : etat collapse des 2 accordeons "Versements pour hier".
+  // Par defaut : "A recouvrer" ouvert (action a faire) / "Verses" replie (fait).
+  const [openVerses,     setOpenVerses]     = useState(false)
+  const [openARecouvrer, setOpenARecouvrer] = useState(true)
 
   const from = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10)
   const to   = new Date().toISOString().slice(0, 10)
@@ -76,13 +80,17 @@ export default function SuiviVersementsWidget() {
   const isHolidayToday = casesToday.length > 0 && casesToday.every(c => c.statut === "jour_ferie_auto" || c.statut === "paye_complet")
     && casesToday.some(c => c.statut === "jour_ferie_auto")
 
-  const alertesHier = data?.cases.filter(c => c.date === yesterday && (c.statut === "manquant" || c.statut === "paye_insuffisant")) || []
-  // Patch 21/05/2026 - Bug 2 + complément 22/05/2026 + correctif 22/05/2026 :
-  // remplacement du composant AlertesPaiements (logique placeholder cassée) par
-  // 2 sous-sections jumelées affichant les immatriculations versées / à recouvrer.
-  // Métier VTC : un chauffeur verse aujourd'hui la recette de la veille -> on
-  // filtre sur jour_exploitation = HIER (et non aujourd'hui) pour le pilotage
-  // du recouvrement quotidien.
+  // Patch 21/05/2026 - Bug 2 + complément 22/05/2026 + correctif 22/05/2026 +
+  // refonte 23/05/2026 :
+  // - remplacement du composant AlertesPaiements (logique placeholder cassée)
+  //   par 2 sous-sections jumelées affichant les immatriculations versées /
+  //   à recouvrer.
+  // - métier VTC : un chauffeur verse aujourd'hui la recette de la veille,
+  //   donc filtre sur jour_exploitation = HIER (et non aujourd'hui) pour le
+  //   pilotage du recouvrement quotidien.
+  // - 23/05 : suppression de la variable alertesHier qui dupliquait
+  //   aRecouvrerHier (filtre 100% identique) + transformation des 2
+  //   sous-sections en accordéons collapsibles.
   const aRecouvrerHier = data?.cases.filter(c =>
     c.date === yesterday && (c.statut === "manquant" || c.statut === "paye_insuffisant")
   ) || []
@@ -226,21 +234,21 @@ export default function SuiviVersementsWidget() {
               </div>
             )}
             <div className={`rounded-xl border p-3 ${
-              alertesHier.length === 0
+              aRecouvrerHier.length === 0
                 ? "bg-gradient-to-br from-emerald-50 to-sky-50 dark:from-emerald-500/5 dark:to-sky-500/5 border-emerald-200/50 dark:border-emerald-500/20"
                 : "bg-gradient-to-br from-red-50 to-orange-50 dark:from-red-500/5 dark:to-orange-500/5 border-red-200/50 dark:border-red-500/20"
             }`}>
               <div className="flex items-center gap-1.5 mb-1">
-                {alertesHier.length === 0
+                {aRecouvrerHier.length === 0
                   ? <CheckCircle2 size={11} className="text-emerald-500" />
                   : <AlertTriangle size={11} className="text-red-500" />
                 }
-                <p className={`text-[10px] font-bold uppercase tracking-wider ${alertesHier.length === 0 ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400"}`}>Hier</p>
+                <p className={`text-[10px] font-bold uppercase tracking-wider ${aRecouvrerHier.length === 0 ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400"}`}>Hier</p>
               </div>
-              <p className={`text-lg font-black font-numeric ${alertesHier.length === 0 ? "text-emerald-700 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
-                {alertesHier.length === 0 ? "✓" : alertesHier.length}
+              <p className={`text-lg font-black font-numeric ${aRecouvrerHier.length === 0 ? "text-emerald-700 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
+                {aRecouvrerHier.length === 0 ? "✓" : aRecouvrerHier.length}
               </p>
-              <p className="text-[10px] text-gray-400 mt-0.5">{alertesHier.length === 0 ? "tous versés" : "à traiter"}</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">{aRecouvrerHier.length === 0 ? "tous versés" : "à traiter"}</p>
             </div>
           </div>
 
@@ -271,119 +279,202 @@ export default function SuiviVersementsWidget() {
             </Link>
           )}
 
-          {/* Versements pour hier : Versés / À recouvrer (correctif 22/05/2026 :
-              filtre yesterday au lieu de today — métier VTC : versement J = recettes J-1) */}
+          {/* Versements pour hier : 2 accordeons collapsibles (refonte 23/05/2026).
+              Filtre yesterday au lieu de today - metier VTC : versement J = recettes J-1.
+              Suppression du doublon "Alertes hier" qui repliquait a l'identique
+              le filtre de "A recouvrer". */}
           {(versesHier.length > 0 || aRecouvrerHier.length > 0) && (
-            <div className="space-y-3 border-t border-gray-100 dark:border-[#1E2D45] pt-3">
-              <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                Versements pour hier
-              </p>
-
-              {/* Sous-section Versés */}
-              <div className="space-y-1.5">
-                <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
-                  Versés ({versesHier.length})
+            <div className="space-y-2 border-t border-gray-100 dark:border-[#1E2D45] pt-3">
+              <div className="flex items-baseline justify-between">
+                <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Versements pour hier
                 </p>
-                {versesHier.length === 0 ? (
-                  <p className="text-[11px] text-gray-400 dark:text-gray-500 italic px-2 py-1">
-                    Aucun versement reçu pour le moment.
-                  </p>
-                ) : (
-                  <div className="space-y-1 max-h-[140px] overflow-y-auto pr-1">
-                    {versesHier.map((c, i) => (
-                      <motion.div
-                        key={`verse-hier-${c.immatriculation}-${c.date}`}
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: i * 0.03 }}
-                        className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-gray-50 dark:hover:bg-white/[0.02] transition"
-                      >
-                        <div className="flex items-center gap-2">
-                          <CheckCircle2 size={11} className="text-emerald-500 flex-shrink-0" />
-                          <span className="font-mono text-xs font-bold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-white/10 px-1.5 py-0.5 rounded">
-                            {c.immatriculation}
-                          </span>
-                        </div>
-                        <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
-                          {c.statut === "jour_ferie_auto"
-                            ? "Férié"
-                            : c.statut === "paye_justifie"
-                              ? "Justifié"
-                              : `${Math.round(c.montant_recu).toLocaleString("fr-FR")} F`
-                          }
-                        </span>
-                      </motion.div>
-                    ))}
-                  </div>
-                )}
+                <p className="text-[10px] text-gray-400 dark:text-gray-500">
+                  {versesHier.length + aRecouvrerHier.length} véhicule{versesHier.length + aRecouvrerHier.length > 1 ? "s" : ""}
+                </p>
               </div>
 
-              {/* Sous-section À recouvrer */}
-              <div className="space-y-1.5">
-                <p className="text-[10px] font-bold text-red-500 dark:text-red-400 uppercase tracking-wider">
-                  À recouvrer ({aRecouvrerHier.length})
-                </p>
-                {aRecouvrerHier.length === 0 ? (
-                  <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-500/5 border border-emerald-100 dark:border-emerald-500/20">
-                    <CheckCircle2 size={11} className="text-emerald-500 flex-shrink-0" />
-                    <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-semibold">
-                      Tous les véhicules ont versé.
+              {/* Accordeon Verses */}
+              <button
+                type="button"
+                onClick={() => setOpenVerses(o => !o)}
+                aria-expanded={openVerses}
+                className="w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-500/5 dark:to-teal-500/5 border border-emerald-200/60 dark:border-emerald-500/20 hover:shadow-sm transition-all duration-200 group"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-sm shadow-emerald-500/30">
+                    <CheckCircle2 size={12} className="text-white" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-xs font-bold text-emerald-700 dark:text-emerald-400 leading-tight">
+                      Versés
+                    </p>
+                    <p className="text-[10px] text-emerald-600/70 dark:text-emerald-500/70 leading-tight">
+                      {versesHier.length === 0 ? "Aucun pour l'instant" : `${versesHier.length} véhicule${versesHier.length > 1 ? "s" : ""}`}
                     </p>
                   </div>
-                ) : (
-                  <div className="space-y-1 max-h-[140px] overflow-y-auto pr-1">
-                    {aRecouvrerHier.map((c, i) => (
-                      <motion.div
-                        key={`recouv-hier-${c.immatriculation}-${c.date}`}
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: i * 0.04 }}
-                        className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-gray-50 dark:hover:bg-white/[0.02] transition"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className={`w-1.5 h-1.5 rounded-full ${c.statut === "manquant" ? "bg-red-500" : "bg-amber-500"}`} />
-                          <span className="font-mono text-xs font-bold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-white/10 px-1.5 py-0.5 rounded">
-                            {c.immatriculation}
-                          </span>
-                        </div>
-                        <span className={`text-[10px] font-semibold ${c.statut === "manquant" ? "text-red-500" : "text-amber-600 dark:text-amber-400"}`}>
-                          {c.statut === "manquant"
-                            ? "Pas versé"
-                            : `${Math.round(c.montant_recu).toLocaleString("fr-FR")}/${Math.round(c.montant_attendu).toLocaleString("fr-FR")}`
-                          }
-                        </span>
-                      </motion.div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Dernières alertes */}
-          {alertesHier.length > 0 && (
-            <div className="space-y-1.5 max-h-[140px] overflow-y-auto">
-              <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Alertes hier</p>
-              {alertesHier.slice(0, 4).map((c, i) => (
-                <motion.div
-                  key={`${c.immatriculation}-${c.date}`}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.05 }}
-                  className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-gray-50 dark:hover:bg-white/[0.02] transition"
-                >
-                  <div className="flex items-center gap-2">
-                    <span className={`w-1.5 h-1.5 rounded-full ${c.statut === "manquant" ? "bg-red-500" : "bg-amber-500"}`} />
-                    <span className="font-mono text-xs font-bold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-white/10 px-1.5 py-0.5 rounded">{c.immatriculation}</span>
-                  </div>
-                  <span className={`text-[10px] font-semibold ${c.statut === "manquant" ? "text-red-500" : "text-amber-600 dark:text-amber-400"}`}>
-                    {c.statut === "manquant"
-                      ? "Aucun versement"
-                      : `${Math.round(c.montant_recu).toLocaleString("fr-FR")}/${Math.round(c.montant_attendu).toLocaleString("fr-FR")}`
-                    }
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="font-numeric text-sm font-black text-emerald-600 dark:text-emerald-400 tabular-nums">
+                    {versesHier.length}
                   </span>
-                </motion.div>
-              ))}
+                  <motion.div animate={{ rotate: openVerses ? 180 : 0 }} transition={{ duration: 0.2 }}>
+                    <ChevronDown size={14} className="text-emerald-500 group-hover:text-emerald-600" />
+                  </motion.div>
+                </div>
+              </button>
+              <AnimatePresence initial={false}>
+                {openVerses && (
+                  <motion.div
+                    key="content-verses"
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+                    className="overflow-hidden"
+                  >
+                    <div className="pt-1.5 pb-0.5">
+                      {versesHier.length === 0 ? (
+                        <p className="text-[11px] text-gray-400 dark:text-gray-500 italic px-3 py-2">
+                          Aucun versement reçu pour le moment.
+                        </p>
+                      ) : (
+                        <div className="space-y-0.5 max-h-[180px] overflow-y-auto pr-1">
+                          {versesHier.map((c, i) => (
+                            <motion.div
+                              key={`verse-hier-${c.immatriculation}-${c.date}`}
+                              initial={{ opacity: 0, x: -10 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              transition={{ delay: i * 0.025 }}
+                              className="flex items-center justify-between py-1.5 px-3 rounded-lg hover:bg-emerald-50/50 dark:hover:bg-emerald-500/[0.03] transition"
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                <span className="font-mono text-xs font-bold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-white/10 px-1.5 py-0.5 rounded">
+                                  {c.immatriculation}
+                                </span>
+                              </div>
+                              <span className="text-[10.5px] font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                                {c.statut === "jour_ferie_auto"
+                                  ? "Férié"
+                                  : c.statut === "paye_justifie"
+                                    ? "Justifié"
+                                    : `${Math.round(c.montant_recu).toLocaleString("fr-FR")} F`
+                                }
+                              </span>
+                            </motion.div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Accordeon A recouvrer */}
+              <button
+                type="button"
+                onClick={() => setOpenARecouvrer(o => !o)}
+                aria-expanded={openARecouvrer}
+                className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl border transition-all duration-200 group ${
+                  aRecouvrerHier.length === 0
+                    ? "bg-gradient-to-r from-emerald-50 to-sky-50 dark:from-emerald-500/5 dark:to-sky-500/5 border-emerald-200/60 dark:border-emerald-500/20 hover:shadow-sm"
+                    : "bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-500/5 dark:to-orange-500/5 border-red-200/60 dark:border-red-500/30 hover:shadow-md"
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className={`w-6 h-6 rounded-lg flex items-center justify-center shadow-sm ${
+                    aRecouvrerHier.length === 0
+                      ? "bg-gradient-to-br from-emerald-500 to-teal-600 shadow-emerald-500/30"
+                      : "bg-gradient-to-br from-red-500 to-orange-500 shadow-red-500/30"
+                  }`}>
+                    {aRecouvrerHier.length === 0
+                      ? <CheckCircle2 size={12} className="text-white" />
+                      : <AlertTriangle size={12} className="text-white" />
+                    }
+                  </div>
+                  <div className="text-left">
+                    <p className={`text-xs font-bold leading-tight ${
+                      aRecouvrerHier.length === 0
+                        ? "text-emerald-700 dark:text-emerald-400"
+                        : "text-red-700 dark:text-red-400"
+                    }`}>
+                      À recouvrer
+                    </p>
+                    <p className={`text-[10px] leading-tight ${
+                      aRecouvrerHier.length === 0
+                        ? "text-emerald-600/70 dark:text-emerald-500/70"
+                        : "text-red-600/70 dark:text-red-500/70"
+                    }`}>
+                      {aRecouvrerHier.length === 0 ? "Tous versés" : `${aRecouvrerHier.length} véhicule${aRecouvrerHier.length > 1 ? "s" : ""} à relancer`}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`font-numeric text-sm font-black tabular-nums ${
+                    aRecouvrerHier.length === 0
+                      ? "text-emerald-600 dark:text-emerald-400"
+                      : "text-red-600 dark:text-red-400"
+                  }`}>
+                    {aRecouvrerHier.length === 0 ? "✓" : aRecouvrerHier.length}
+                  </span>
+                  <motion.div animate={{ rotate: openARecouvrer ? 180 : 0 }} transition={{ duration: 0.2 }}>
+                    <ChevronDown size={14} className={
+                      aRecouvrerHier.length === 0
+                        ? "text-emerald-500 group-hover:text-emerald-600"
+                        : "text-red-500 group-hover:text-red-600"
+                    } />
+                  </motion.div>
+                </div>
+              </button>
+              <AnimatePresence initial={false}>
+                {openARecouvrer && (
+                  <motion.div
+                    key="content-arecouvrer"
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+                    className="overflow-hidden"
+                  >
+                    <div className="pt-1.5 pb-0.5">
+                      {aRecouvrerHier.length === 0 ? (
+                        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-50/50 dark:bg-emerald-500/[0.03]">
+                          <CheckCircle2 size={11} className="text-emerald-500 flex-shrink-0" />
+                          <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-semibold">
+                            Tous les véhicules ont versé pour hier.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="space-y-0.5 max-h-[180px] overflow-y-auto pr-1">
+                          {aRecouvrerHier.map((c, i) => (
+                            <motion.div
+                              key={`recouv-hier-${c.immatriculation}-${c.date}`}
+                              initial={{ opacity: 0, x: -10 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              transition={{ delay: i * 0.035 }}
+                              className="flex items-center justify-between py-1.5 px-3 rounded-lg hover:bg-red-50/40 dark:hover:bg-red-500/[0.03] transition"
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className={`w-1.5 h-1.5 rounded-full ${c.statut === "manquant" ? "bg-red-500" : "bg-amber-500"}`} />
+                                <span className="font-mono text-xs font-bold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-white/10 px-1.5 py-0.5 rounded">
+                                  {c.immatriculation}
+                                </span>
+                              </div>
+                              <span className={`text-[10.5px] font-semibold tabular-nums ${c.statut === "manquant" ? "text-red-500" : "text-amber-600 dark:text-amber-400"}`}>
+                                {c.statut === "manquant"
+                                  ? "Pas versé"
+                                  : `${Math.round(c.montant_recu).toLocaleString("fr-FR")}/${Math.round(c.montant_attendu).toLocaleString("fr-FR")}`
+                                }
+                              </span>
+                            </motion.div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           )}
 
