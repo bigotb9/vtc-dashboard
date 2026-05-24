@@ -108,6 +108,16 @@ async function computeAgregats(
   let reversements_bailleurs = 0
 
   for (const o of ops) {
+    // FIX 23/05/2026 - Exclure les transferts internes des deux cotes.
+    // Les transferts internes (Wave Boyah -> Caisse siege pour un retrait cash,
+    // par exemple) generent 2 operations jumelles source='transfert_interne' :
+    // une sortie sur la caisse source + une entree sur la caisse destination.
+    // Ce n'est NI une recette NI une depense : juste un deplacement d'argent.
+    // Sans ce filtre, l'entree etait comptabilisee a tort dans autres_recettes
+    // (bug remonte 23/05 : ligne "Autres recettes" gonflee par 1 539 200 F
+    // sur un simple retrait cash Wave -> Siege).
+    if (o.source === "transfert_interne") continue
+
     const m = Number(o.montant || 0)
     if (o.type === "entree") {
       if (o.source === "recette_wave" && o.caisse_id === waveBoyahId) {
@@ -124,7 +134,7 @@ async function computeAgregats(
         // Toute charge classe 6xx hors 6131
         charges += m
       }
-      // Sinon : sortie hors charge classe 6 (ex transferts internes, sorties tresorerie) -> ignoree
+      // Sinon : sortie hors charge classe 6 (ex sorties tresorerie diverses) -> ignoree
     }
   }
 
