@@ -1,7 +1,7 @@
 "use client"
 import { authFetch } from "@/lib/authFetch"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import {
   ArrowLeft, AlertCircle, Plus,
@@ -10,7 +10,7 @@ import {
 import Link from "next/link"
 import { toast } from "@/lib/toast"
 
-/* ── types ── */
+/* -- types -- */
 type Vehicule = {
   id_vehicule: number
   immatriculation: string
@@ -21,11 +21,11 @@ type Props = {
   vehicules: Vehicule[]
 }
 
-/* ── types de dépense prédéfinis ── */
+/* -- types de depense predefinis -- */
 const TYPES_DEPENSE = [
   "Carburant",
   "Vidange",
-  "Réparation",
+  "Reparation",
   "Assurance",
   "Visite technique",
   "Pneus",
@@ -35,7 +35,7 @@ const TYPES_DEPENSE = [
   "Autre",
 ]
 
-/* ── sous-composants ── */
+/* -- sous-composants -- */
 function SectionHeader({ icon: Icon, label, color }: {
   icon: React.ElementType; label: string; color: string
 }) {
@@ -51,8 +51,10 @@ function SectionHeader({ icon: Icon, label, color }: {
   )
 }
 
-function Field({ label, required, children }: {
+function Field({ label, required, children, error }: {
   label: string; required?: boolean; children: React.ReactNode
+  /** Lot R (audit 27/05/2026) : message d'erreur affiche sous le champ */
+  error?: string | null
 }) {
   return (
     <div className="flex flex-col gap-1.5">
@@ -60,11 +62,107 @@ function Field({ label, required, children }: {
         {label}{required && <span className="text-red-500 ml-0.5">*</span>}
       </label>
       {children}
+      {error && (
+        <p className="text-[11px] font-medium text-red-600 dark:text-red-400 flex items-center gap-1" role="alert">
+          <AlertCircle size={11} className="flex-shrink-0" />
+          {error}
+        </p>
+      )}
     </div>
   )
 }
 
-/* ── page ── */
+/* -- page -- */
+type FormState = {
+  date_depense:              string
+  montant:                   string
+  type_depense:              string
+  type_custom:               string
+  description:               string
+  id_vehicule:               string
+  immobilisation:            boolean
+  date_debut_immobilisation: string
+  date_fin_immobilisation:   string
+}
+
+type FieldErrors = Partial<Record<keyof FormState, string | null>>
+
+// Lot R (audit 27/05/2026) : validation client centralisee.
+// Regles metier (cf. finding 6.5 + spec Lot R) :
+//   - montant requis et > 0
+//   - date_depense requise et <= aujourd'hui
+//   - type_depense (ou type_custom si typeCustom) requis et non vide
+//   - si immobilisation : date_debut >= date_depense, date_fin >= date_debut
+function validateDepenseField(
+  field: keyof FormState,
+  form: FormState,
+  typeCustom: boolean,
+): string | null {
+  const todayIso = new Date().toISOString().slice(0, 10)
+
+  switch (field) {
+    case "date_depense": {
+      if (!form.date_depense) return "Date requise"
+      if (form.date_depense > todayIso) return "La date ne peut pas être dans le futur"
+      return null
+    }
+    case "montant": {
+      if (form.montant === "") return "Montant requis"
+      const n = Number(form.montant)
+      if (!Number.isFinite(n) || n <= 0) return "Montant doit être > 0"
+      return null
+    }
+    case "type_depense": {
+      const finalType = typeCustom ? form.type_custom.trim() : form.type_depense
+      if (!finalType) return typeCustom ? "Précise le type personnalisé" : "Sélectionne un type"
+      // L'API rejette les libellés contenant "reversement"
+      if (finalType.toLowerCase().includes("reversement")) {
+        return "Les reversements clients se saisissent dans le module Clients"
+      }
+      return null
+    }
+    case "type_custom": {
+      // Mirror de type_depense quand typeCustom=true
+      if (typeCustom && !form.type_custom.trim()) return "Précise le type personnalisé"
+      if (typeCustom && form.type_custom.toLowerCase().includes("reversement")) {
+        return "Les reversements clients se saisissent dans le module Clients"
+      }
+      return null
+    }
+    case "date_debut_immobilisation": {
+      if (!form.immobilisation) return null
+      if (!form.date_debut_immobilisation) return null   // optionnel meme si immo
+      if (form.date_depense && form.date_debut_immobilisation < form.date_depense) {
+        return "Doit être après la date de la dépense"
+      }
+      return null
+    }
+    case "date_fin_immobilisation": {
+      if (!form.immobilisation) return null
+      if (!form.date_fin_immobilisation) return null
+      if (form.date_debut_immobilisation && form.date_fin_immobilisation < form.date_debut_immobilisation) {
+        return "Doit être après le début d'immobilisation"
+      }
+      return null
+    }
+    default:
+      return null
+  }
+}
+
+function validateDepenseAll(form: FormState, typeCustom: boolean): FieldErrors {
+  const errors: FieldErrors = {}
+  const fields: (keyof FormState)[] = [
+    "date_depense", "montant", "type_depense", "type_custom",
+    "date_debut_immobilisation", "date_fin_immobilisation",
+  ]
+  for (const f of fields) {
+    const err = validateDepenseField(f, form, typeCustom)
+    if (err) errors[f] = err
+  }
+  return errors
+}
+
 export default function CreateDepenseForm({ vehicules }: Props) {
 
   const router = useRouter()
@@ -72,7 +170,7 @@ export default function CreateDepenseForm({ vehicules }: Props) {
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [typeCustom, setTypeCustom] = useState(false)
 
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<FormState>({
     date_depense:            "",
     montant:                 "",
     type_depense:            "",
@@ -84,14 +182,39 @@ export default function CreateDepenseForm({ vehicules }: Props) {
     date_fin_immobilisation:   "",
   })
 
-  const set = (k: keyof typeof form, v: string | boolean) =>
+  // Lot R : validation client par champ avec feedback onBlur.
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
+
+  const set = (k: keyof FormState, v: string | boolean) =>
     setForm(p => ({ ...p, [k]: v }))
+
+  const handleBlur = (field: keyof FormState) => {
+    const err = validateDepenseField(field, form, typeCustom)
+    setFieldErrors(prev => ({ ...prev, [field]: err }))
+  }
+
+  /** Bouton submit désactivé tant qu'un champ requis est vide ou en erreur. */
+  const submitDisabled = useMemo(() => {
+    if (loading) return true
+    if (!form.date_depense || !form.montant) return true
+    const finalType = typeCustom ? form.type_custom.trim() : form.type_depense
+    if (!finalType) return true
+    // Toute erreur déjà signalée bloque aussi
+    return Object.values(fieldErrors).some(e => e !== null && e !== undefined && e !== "")
+  }, [loading, form, typeCustom, fieldErrors])
 
   const inp = "w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600 rounded-xl px-3.5 py-2.5 text-sm transition focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent focus:bg-white"
 
   const handleSubmit = async (e: { preventDefault(): void }) => {
     e.preventDefault()
-    if (!form.date_depense || !form.montant) return
+    // Lot R : re-validation finale avant l'appel API (cas où le user clique
+    // sans avoir blur tous les champs, ex: submit clavier).
+    const finalErrors = validateDepenseAll(form, typeCustom)
+    if (Object.keys(finalErrors).length > 0) {
+      setFieldErrors(finalErrors)
+      toast.error("Corrige les champs en rouge avant d'enregistrer")
+      return
+    }
     setLoading(true)
     setErrorMsg(null)
 
@@ -113,7 +236,7 @@ export default function CreateDepenseForm({ vehicules }: Props) {
     setLoading(false)
 
     if (data.success) {
-      toast.success("Dépense enregistrée avec succès")
+      toast.success("Depense enregistree avec succes")
       router.push("/depenses")
     } else {
       toast.error(data.error || "Erreur lors de l'enregistrement")
@@ -121,7 +244,7 @@ export default function CreateDepenseForm({ vehicules }: Props) {
     }
   }
 
-  /* ── render ── */
+  /* -- render -- */
   return (
     <div className="min-h-screen pb-28">
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-5">
@@ -133,7 +256,7 @@ export default function CreateDepenseForm({ vehicules }: Props) {
             <ArrowLeft size={16} />
           </Link>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Nouvelle dépense</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Nouvelle depense</h1>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
               Table <span className="font-mono text-red-500 text-xs bg-red-50 dark:bg-red-900/20 px-1.5 py-0.5 rounded">depenses_vehicules</span>
             </p>
@@ -142,25 +265,31 @@ export default function CreateDepenseForm({ vehicules }: Props) {
 
         <form onSubmit={handleSubmit} className="space-y-5">
 
-          {/* ══ DÉPENSE ══ */}
+          {/* -- DEPENSE -- */}
           <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm p-5 space-y-5">
-            <SectionHeader icon={Banknote} label="Détails de la dépense" color="bg-red-500" />
+            <SectionHeader icon={Banknote} label="Details de la depense" color="bg-red-500" />
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
-              <Field label="Date de la dépense" required>
+              <Field label="Date de la depense" required error={fieldErrors.date_depense}>
                 <input type="date" required className={inp}
-                  value={form.date_depense} onChange={e => set("date_depense", e.target.value)} />
+                  max={new Date().toISOString().slice(0, 10)}
+                  value={form.date_depense}
+                  onChange={e => set("date_depense", e.target.value)}
+                  onBlur={() => handleBlur("date_depense")} />
               </Field>
 
-              <Field label="Montant (FCFA)" required>
-                <input type="number" required min={0} placeholder="0" className={inp}
-                  value={form.montant} onChange={e => set("montant", e.target.value)} />
+              <Field label="Montant (FCFA)" required error={fieldErrors.montant}>
+                <input type="number" required min={1} step="any" placeholder="0" className={inp}
+                  value={form.montant}
+                  onChange={e => set("montant", e.target.value)}
+                  onBlur={() => handleBlur("montant")} />
               </Field>
 
-              <Field label="Type de dépense">
+              <Field label="Type de depense" required error={fieldErrors.type_depense}>
                 <select className={inp}
                   value={typeCustom ? "Autre" : form.type_depense}
+                  onBlur={() => handleBlur("type_depense")}
                   onChange={e => {
                     if (e.target.value === "Autre") {
                       setTypeCustom(true)
@@ -169,8 +298,10 @@ export default function CreateDepenseForm({ vehicules }: Props) {
                       setTypeCustom(false)
                       set("type_depense", e.target.value)
                     }
+                    // Reset des erreurs liées au type (typeCustom switche)
+                    setFieldErrors(prev => ({ ...prev, type_depense: null, type_custom: null }))
                   }}>
-                  <option value="">— Sélectionner —</option>
+                  <option value="">- Selectionner -</option>
                   {TYPES_DEPENSE.map(t => (
                     <option key={t} value={t}>{t}</option>
                   ))}
@@ -178,22 +309,32 @@ export default function CreateDepenseForm({ vehicules }: Props) {
               </Field>
 
               {typeCustom && (
-                <Field label="Préciser le type">
-                  <input type="text" placeholder="Type personnalisé..." className={inp}
-                    value={form.type_custom} onChange={e => set("type_custom", e.target.value)} />
+                <Field label="Preciser le type" required error={fieldErrors.type_custom}>
+                  <input type="text" placeholder="Type personnalise..." className={inp}
+                    value={form.type_custom}
+                    onChange={e => set("type_custom", e.target.value)}
+                    onBlur={() => handleBlur("type_custom")} />
+                  {/* L4 patch 18/05/2026 - hint pour rediriger les reversements clients. */}
+                  {/* L'API refusera tout type contenant 'reversement' ; on l'indique en amont pour eviter la friction. */}
+                  {form.type_custom.toLowerCase().includes("reversement") && (
+                    <p className="mt-1.5 text-[12px] text-orange-700 dark:text-orange-300">
+                      Les reversements clients ne se saisissent pas ici. Utilisez le module{" "}
+                      <Link href="/clients" className="font-semibold underline">Clients</Link>.
+                    </p>
+                  )}
                 </Field>
               )}
 
             </div>
 
             <Field label="Description">
-              <textarea rows={3} placeholder="Détails de la dépense (optionnel)..."
+              <textarea rows={3} placeholder="Details de la depense (optionnel)..."
                 className={`${inp} resize-none`}
                 value={form.description} onChange={e => set("description", e.target.value)} />
             </Field>
           </div>
 
-          {/* ══ VÉHICULE ══ */}
+          {/* -- VEHICULE -- */}
           <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm p-5 space-y-5">
             <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-4">
               <div className="flex items-center gap-2.5">
@@ -201,7 +342,7 @@ export default function CreateDepenseForm({ vehicules }: Props) {
                   <Car size={14} className="text-white" />
                 </span>
                 <span className="text-[11px] font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400">
-                  Véhicule concerné
+                  Vehicule concerne
                 </span>
               </div>
               <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full">
@@ -209,20 +350,20 @@ export default function CreateDepenseForm({ vehicules }: Props) {
               </span>
             </div>
 
-            <Field label="Sélectionner un véhicule">
+            <Field label="Selectionner un vehicule">
               <select className={inp} value={form.id_vehicule}
                 onChange={e => set("id_vehicule", e.target.value)}>
-                <option value="">— Dépense générale (sans véhicule) —</option>
+                <option value="">- Depense generale (sans vehicule) -</option>
                 {vehicules.map(v => (
                   <option key={v.id_vehicule} value={v.id_vehicule}>
-                    {v.immatriculation}{v.proprietaire ? ` — ${v.proprietaire}` : ""}
+                    {v.immatriculation}{v.proprietaire ? ` - ${v.proprietaire}` : ""}
                   </option>
                 ))}
               </select>
             </Field>
           </div>
 
-          {/* ══ IMMOBILISATION ══ */}
+          {/* -- IMMOBILISATION -- */}
           <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm p-5 space-y-5">
             <SectionHeader icon={AlertTriangle} label="Immobilisation" color="bg-orange-500" />
 
@@ -230,10 +371,10 @@ export default function CreateDepenseForm({ vehicules }: Props) {
             <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-xl">
               <div>
                 <p className="text-sm font-semibold text-gray-800 dark:text-white">
-                  Véhicule immobilisé
+                  Vehicule immobilise
                 </p>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                  Le véhicule est hors service pendant cette période
+                  Le vehicule est hors service pendant cette periode
                 </p>
               </div>
               <button type="button" onClick={() => set("immobilisation", !form.immobilisation)}
@@ -247,27 +388,29 @@ export default function CreateDepenseForm({ vehicules }: Props) {
             {/* dates conditionnelles */}
             {form.immobilisation && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 animate-in fade-in duration-200">
-                <Field label="Début immobilisation">
+                <Field label="Debut immobilisation" error={fieldErrors.date_debut_immobilisation}>
                   <input type="date" className={inp}
                     value={form.date_debut_immobilisation}
-                    onChange={e => set("date_debut_immobilisation", e.target.value)} />
+                    onChange={e => set("date_debut_immobilisation", e.target.value)}
+                    onBlur={() => handleBlur("date_debut_immobilisation")} />
                 </Field>
-                <Field label="Fin immobilisation">
+                <Field label="Fin immobilisation" error={fieldErrors.date_fin_immobilisation}>
                   <input type="date" className={inp}
                     value={form.date_fin_immobilisation}
-                    onChange={e => set("date_fin_immobilisation", e.target.value)} />
+                    onChange={e => set("date_fin_immobilisation", e.target.value)}
+                    onBlur={() => handleBlur("date_fin_immobilisation")} />
                 </Field>
                 <div className="sm:col-span-2">
                   <div className="flex items-start gap-2 p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl text-xs text-orange-700 dark:text-orange-400">
                     <AlertTriangle size={13} className="flex-shrink-0 mt-0.5" />
-                    <span>Le véhicule sera marqué comme indisponible sur cette période dans les statistiques.</span>
+                    <span>Le vehicule sera marque comme indisponible sur cette periode dans les statistiques.</span>
                   </div>
                 </div>
               </div>
             )}
           </div>
 
-          {/* RÉSUMÉ */}
+          {/* RESUME */}
           {form.montant && form.date_depense && (
             <div className="flex items-center gap-3 p-4 rounded-2xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
               <FileText size={16} className="text-gray-400 flex-shrink-0" />
@@ -275,11 +418,11 @@ export default function CreateDepenseForm({ vehicules }: Props) {
                 <span className="font-semibold text-gray-900 dark:text-white">
                   {Number(form.montant).toLocaleString("fr-FR")} FCFA
                 </span>
-                {" "}— {typeCustom ? form.type_custom || "Autre" : form.type_depense || "Type non défini"}
+                {" "}- {typeCustom ? form.type_custom || "Autre" : form.type_depense || "Type non defini"}
                 {" "}le{" "}
                 {new Date(form.date_depense).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" })}
                 {form.id_vehicule && vehicules.find(v => v.id_vehicule === Number(form.id_vehicule)) && (
-                  <> — Véhicule <span className="font-semibold text-indigo-600 dark:text-indigo-400">
+                  <> - Vehicule <span className="font-semibold text-indigo-600 dark:text-indigo-400">
                     {vehicules.find(v => v.id_vehicule === Number(form.id_vehicule))?.immatriculation}
                   </span></>
                 )}
@@ -305,11 +448,11 @@ export default function CreateDepenseForm({ vehicules }: Props) {
                 Annuler
               </button>
             </Link>
-            <button type="submit" disabled={loading}
-              className="px-6 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-sm font-semibold transition shadow-sm flex items-center gap-2">
+            <button type="submit" disabled={submitDisabled}
+              className="px-6 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold transition shadow-sm flex items-center gap-2">
               {loading
                 ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Enregistrement...</>
-                : <><Plus size={15} />Enregistrer la dépense</>
+                : <><Plus size={15} />Enregistrer la depense</>
               }
             </button>
           </div>
@@ -324,8 +467,8 @@ export default function CreateDepenseForm({ vehicules }: Props) {
             Annuler
           </button>
         </Link>
-        <button disabled={loading} onClick={handleSubmit}
-          className="flex-1 py-3 rounded-xl bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-sm font-semibold flex items-center justify-center gap-2">
+        <button disabled={submitDisabled} onClick={handleSubmit}
+          className="flex-1 py-3 rounded-xl bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold flex items-center justify-center gap-2">
           {loading
             ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
             : <><Plus size={14} />Enregistrer</>

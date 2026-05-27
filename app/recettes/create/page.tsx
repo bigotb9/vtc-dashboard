@@ -1,7 +1,7 @@
 "use client"
 import { authFetch } from "@/lib/authFetch"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import Papa from "papaparse"
 import {
@@ -72,10 +72,12 @@ function SectionHeader({ icon: Icon, label, color }: {
   )
 }
 
-function Field({ label, children, required }: {
+function Field({ label, children, required, error }: {
   label: string
   children: React.ReactNode
   required?: boolean
+  /** Lot R (audit 27/05/2026) : message d'erreur affiche sous le champ */
+  error?: string | null
 }) {
   return (
     <div className="flex flex-col gap-1.5">
@@ -84,8 +86,73 @@ function Field({ label, children, required }: {
         {required && <span className="text-indigo-500 ml-0.5">*</span>}
       </label>
       {children}
+      {error && (
+        <p className="text-[11px] font-medium text-red-600 dark:text-red-400 flex items-center gap-1" role="alert">
+          <AlertCircle size={11} className="flex-shrink-0" />
+          {error}
+        </p>
+      )}
     </div>
   )
+}
+
+// Lot R (audit 27/05/2026) : validation client pour le tab manuel.
+// Regles metier (cf. finding 6.5) :
+//   - Montant net requis et > 0
+//   - Horodatage requis et <= maintenant
+//   - date_paiement / date_travail : si renseignes, <= aujourd'hui
+type RecetteFieldErrors = Partial<Record<keyof FormState, string | null>>
+
+function validateRecetteField(field: keyof FormState, form: FormState): string | null {
+  const now = new Date()
+  const todayIso = now.toISOString().slice(0, 10)
+  const nowLocalIso = new Date(now.getTime() - now.getTimezoneOffset() * 60_000)
+    .toISOString().slice(0, 16)
+
+  switch (field) {
+    case "Montant net": {
+      if (form["Montant net"] === "") return "Montant net requis"
+      const n = Number(form["Montant net"])
+      if (!Number.isFinite(n) || n <= 0) return "Doit être > 0"
+      return null
+    }
+    case "Horodatage": {
+      if (!form.Horodatage) return "Horodatage requis"
+      if (form.Horodatage > nowLocalIso) return "Ne peut pas être dans le futur"
+      return null
+    }
+    case "date_paiement": {
+      if (!form.date_paiement) return null
+      if (form.date_paiement > todayIso) return "Ne peut pas être dans le futur"
+      return null
+    }
+    case "date_travail": {
+      if (!form.date_travail) return null
+      if (form.date_travail > todayIso) return "Ne peut pas être dans le futur"
+      return null
+    }
+    case "Montant brut":
+    case "Frais":
+    case "Solde": {
+      // Pas requis, mais si renseignes ils doivent etre numeriques (le type=number
+      // bloque deja les non-numbers cote browser). Pas d'erreur custom ici.
+      return null
+    }
+    default:
+      return null
+  }
+}
+
+function validateRecetteAll(form: FormState): RecetteFieldErrors {
+  const errors: RecetteFieldErrors = {}
+  const fields: (keyof FormState)[] = [
+    "Montant net", "Horodatage", "date_paiement", "date_travail",
+  ]
+  for (const f of fields) {
+    const err = validateRecetteField(f, form)
+    if (err) errors[f] = err
+  }
+  return errors
 }
 
 /* ─────────────────── page ─────────────────── */
@@ -100,6 +167,20 @@ export default function CreateRecette() {
   const [csvResult,  setCsvResult]  = useState<{ success: boolean; count?: number; error?: string } | null>(null)
   const [formResult, setFormResult] = useState<{ success: boolean; error?: string } | null>(null)
   const [form,       setForm]       = useState<FormState>(emptyForm)
+  // Lot R (audit 27/05/2026) : validation client par champ avec feedback onBlur.
+  const [fieldErrors, setFieldErrors] = useState<RecetteFieldErrors>({})
+
+  const handleBlur = (field: keyof FormState) => {
+    const err = validateRecetteField(field, form)
+    setFieldErrors(prev => ({ ...prev, [field]: err }))
+  }
+
+  /** Bouton submit désactivé tant qu'un champ requis est vide ou en erreur. */
+  const submitDisabled = useMemo(() => {
+    if (loading) return true
+    if (!form.Horodatage || form["Montant net"] === "") return true
+    return Object.values(fieldErrors).some(e => e !== null && e !== undefined && e !== "")
+  }, [loading, form, fieldErrors])
 
   // Prévisualisation CSV avant import
   const [csvPreview, setCsvPreview] = useState<{
@@ -266,7 +347,10 @@ export default function CreateRecette() {
       r["Identifiant de transaction"] || r["Horodatage"] || r["Montant net"] !== null
     )
 
-    const res  = await fetch("/api/recettes/import", {
+    // Patch sync legacy → operations : /api/recettes/import exige désormais
+    // un token Bearer (cohérent avec /api/recettes/create). On bascule sur
+    // authFetch (déjà importé ligne 2 et utilisé ligne 324 pour /create).
+    const res  = await authFetch("/api/recettes/import", {
       method: "POST",
       body:   JSON.stringify(validRows),
     })
@@ -299,6 +383,13 @@ export default function CreateRecette() {
 
   const handleSubmit = async (e: { preventDefault(): void }) => {
     e.preventDefault()
+    // Lot R : re-validation finale avant l'appel API.
+    const finalErrors = validateRecetteAll(form)
+    if (Object.keys(finalErrors).length > 0) {
+      setFieldErrors(finalErrors)
+      setFormResult({ success: false, error: "Corrige les champs en rouge avant d'enregistrer" })
+      return
+    }
     setLoading(true)
     setFormResult(null)
 
@@ -604,13 +695,14 @@ export default function CreateRecette() {
                   />
                 </Field>
 
-                <Field label="Horodatage" required>
+                <Field label="Horodatage" required error={fieldErrors.Horodatage}>
                   <input
                     type="datetime-local"
                     required
                     className={input}
                     value={form.Horodatage}
                     onChange={(e) => set("Horodatage", e.target.value)}
+                    onBlur={() => handleBlur("Horodatage")}
                   />
                 </Field>
 
@@ -634,14 +726,17 @@ export default function CreateRecette() {
 
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
 
-                <Field label="Montant net (FCFA)" required>
+                <Field label="Montant net (FCFA)" required error={fieldErrors["Montant net"]}>
                   <input
                     type="number"
                     required
+                    min={1}
+                    step="any"
                     placeholder="0"
                     className={input}
                     value={form["Montant net"]}
                     onChange={(e) => set("Montant net", e.target.value)}
+                    onBlur={() => handleBlur("Montant net")}
                   />
                 </Field>
 
@@ -760,21 +855,25 @@ export default function CreateRecette() {
                   />
                 </Field>
 
-                <Field label="Date de paiement">
+                <Field label="Date de paiement" error={fieldErrors.date_paiement}>
                   <input
                     type="date"
                     className={input}
+                    max={new Date().toISOString().slice(0, 10)}
                     value={form.date_paiement}
                     onChange={(e) => set("date_paiement", e.target.value)}
+                    onBlur={() => handleBlur("date_paiement")}
                   />
                 </Field>
 
-                <Field label="Date de travail">
+                <Field label="Date de travail" error={fieldErrors.date_travail}>
                   <input
                     type="date"
                     className={input}
+                    max={new Date().toISOString().slice(0, 10)}
                     value={form.date_travail}
                     onChange={(e) => set("date_travail", e.target.value)}
+                    onBlur={() => handleBlur("date_travail")}
                   />
                 </Field>
 
@@ -801,8 +900,8 @@ export default function CreateRecette() {
               </Link>
               <button
                 type="submit"
-                disabled={loading}
-                className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-semibold transition shadow-sm flex items-center gap-2"
+                disabled={submitDisabled}
+                className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold transition shadow-sm flex items-center gap-2"
               >
                 {loading
                   ? <><span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Enregistrement...</>
@@ -827,9 +926,9 @@ export default function CreateRecette() {
           <button
             type="submit"
             form="recette-form"
-            disabled={loading}
+            disabled={submitDisabled}
             onClick={handleSubmit}
-            className="flex-1 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-semibold flex items-center justify-center gap-2"
+            className="flex-1 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold flex items-center justify-center gap-2"
           >
             {loading
               ? <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />

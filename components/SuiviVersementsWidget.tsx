@@ -56,21 +56,62 @@ export default function SuiviVersementsWidget() {
 
   useEffect(() => { load() }, [])
 
+  // Patch 24/05/2026 (Bug 4) : le bouton sparkle execute desormais 3 etapes
+  // en cascade et fournit un feedback detaille a l'utilisateur :
+  //   1. Attribution chauffeurs (existant, /api/recettes/attribution)
+  //   2. Cascade explicite recettes_wave -> operations (/api/compta/reprise/recettes-wave)
+  //      Note : depuis la migration trigger du 24/05, c'est normalement deja
+  //      fait automatiquement. Mais on rejoue par securite (idempotent).
+  //   3. Regeneration des ecritures comptables des operations recette_wave
+  //      sans ecriture_id (/api/compta/operations/regenerer-ecritures)
   const recalculer = async () => {
     setRecalcul(true)
-    const res = await fetch("/api/recettes/attribution", { method: "POST" })
-    const d   = await res.json()
-    if (d.ok) {
-      const parts = [`${d.attributions_count} attributions`]
-      if (d.skipped_no_chauffeur > 0)    parts.push(`${d.skipped_no_chauffeur} sans chauffeur`)
-      if (d.skipped_no_affectation > 0)  parts.push(`${d.skipped_no_affectation} sans affectation`)
-      if (d.skipped_no_phone > 0)        parts.push(`${d.skipped_no_phone} sans tél`)
-      toast.success(parts.join(" · "), 8000)
+    const parts: string[] = []
+    try {
+      // Etape 1 : Attribution chauffeurs
+      const resAttr = await fetch("/api/recettes/attribution", { method: "POST" })
+      const dAttr = await resAttr.json()
+      if (dAttr.ok) {
+        parts.push(`${dAttr.attributions_count ?? 0} attributions`)
+      }
+
+      // Etape 2 : Cascade recettes_wave -> operations (idempotent)
+      try {
+        const resCasc = await fetch("/api/compta/reprise/recettes-wave", { method: "POST" })
+        if (resCasc.ok) {
+          const dCasc = await resCasc.json()
+          if (dCasc.ok && dCasc.data?.creees > 0) {
+            parts.push(`${dCasc.data.creees} ops creees`)
+          }
+        }
+      } catch { /* non bloquant */ }
+
+      // Etape 3 : Regeneration ecritures pour ops recette_wave sans ecriture
+      try {
+        const resEcr = await fetch("/api/compta/operations/regenerer-ecritures", {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ source: "recette_wave" }),
+        })
+        if (resEcr.ok) {
+          const dEcr = await resEcr.json()
+          if (dEcr.ok && dEcr.data?.generees > 0) {
+            parts.push(`${dEcr.data.generees} ecritures generees`)
+          }
+        }
+      } catch { /* non bloquant - acces directeur compta requis */ }
+
+      if (parts.length === 0) {
+        toast.success("Tout est deja a jour - aucune action necessaire", 5000)
+      } else {
+        toast.success("Rattrapage termine : " + parts.join(" - "), 9000)
+      }
       await load()
-    } else {
-      toast.error(d.error || "Erreur de recalcul")
+    } catch (e) {
+      toast.error((e as Error).message || "Erreur de recalcul")
+    } finally {
+      setRecalcul(false)
     }
-    setRecalcul(false)
   }
 
   const today = new Date().toISOString().slice(0, 10)
