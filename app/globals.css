@@ -95,3 +95,51 @@ svg, img, canvas {
 ::-webkit-scrollbar-thumb:hover { background: #6366f1; }
 .dark ::-webkit-scrollbar-thumb { background: #1E2D45; }
 .dark ::-webkit-scrollbar-thumb:hover { background: #6366f1; }
+
+/* ── Utilitaire : masquer la scrollbar tout en conservant le scroll ── */
+.scrollbar-none {
+  scrollbar-width: none;        /* Firefox */
+  -ms-overflow-style: none;     /* IE/Edge */
+}
+.scrollbar-none::-webkit-scrollbar { display: none; }
+
+/* ============================================================
+   Écran 10 — Plan comptable : règles d'impression
+   ============================================================ */
+@media print {
+  /* Cacher la sidebar de l'app, les éléments de navigation, etc. */
+  aside,
+  nav[aria-label],
+  .sidebar,
+  [data-sidebar] {
+    display: none !important;
+  }
+  /* Forcer l'ouverture de toutes les sections accordéon */
+  .class-section .class-body {
+    display: block !important;
+  }
+  /* Optimiser pour A4 : éviter les coupures intra-section */
+  .class-section {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    margin-bottom: 16px;
+    border: 1px solid #ccc !important;
+    background: white !important;
+  }
+  .class-head {
+    background: #f4f4f5 !important;
+  }
+  body, html {
+    background: white !important;
+    color: black !important;
+  }
+  .compte-row {
+    color: black !important;
+    border-bottom: 1px solid #e5e7eb !important;
+    background: white !important;
+  }
+  .compte-code {
+    color: #6B21A8 !important;
+    background: #F3E8FF !important;
+  }
+}

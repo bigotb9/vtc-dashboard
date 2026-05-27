@@ -9,11 +9,53 @@ import { ThemeToggle } from "@/components/theme-toggle"
 import {
   LayoutDashboard, Car, Users, Wallet, TrendingDown,
   Brain, Settings, Truck, ChevronDown, ChevronRight,
-  LogOut, Building2, UserCheck, Activity, PanelLeftClose, PanelLeftOpen, MapPin
+  LogOut, Building2, UserCheck, Activity, PanelLeftClose, PanelLeftOpen, MapPin, BookOpen,
+  Coins, Folder, Stethoscope, FileText, ArrowDownUp, Archive
 } from "lucide-react"
 import { useProfile } from "@/hooks/useProfile"
 import { motion, AnimatePresence } from "framer-motion"
 import { useSidebar } from "@/lib/SidebarContext"
+
+// Patch 24/05/2026 v2 - Compta en accordeon vertical (plus de sidebar cote a cote).
+// Helper local : detection page Compta active.
+function isComptaPath(p: string): boolean {
+  return p === "/comptabilite" || p.startsWith("/comptabilite/")
+}
+
+// Structure des 12 sous-items du module Comptabilite, groupes par section.
+type ComptaItem  = { href: string; label: string; icon: React.ElementType; exact?: boolean }
+type ComptaGroup = { header?: string; items: ComptaItem[] }
+
+const COMPTA_GROUPS: ComptaGroup[] = [
+  {
+    items: [
+      { href: "/comptabilite",                  label: "Dashboard",         icon: LayoutDashboard, exact: true },
+      { href: "/comptabilite/comptes-caisses",  label: "Comptes & Caisses", icon: Coins },
+      { href: "/comptabilite/categories",       label: "Catégories",         icon: Folder },
+      { href: "/comptabilite/tiers",            label: "Tiers",              icon: Users },
+    ],
+  },
+  {
+    header: "États financiers",
+    items: [
+      { href: "/comptabilite/etats-financiers/bilan",           label: "Bilan SYSCOHADA",     icon: FileText },
+      { href: "/comptabilite/etats-financiers/compte-resultat", label: "Compte de résultat",  icon: TrendingDown },
+      { href: "/comptabilite/etats-financiers/tft",             label: "Flux de trésorerie",  icon: ArrowDownUp },
+      { href: "/comptabilite/etats-financiers/notes-annexes",   label: "Notes annexes",       icon: BookOpen },
+    ],
+  },
+  {
+    header: "Paramètres",
+    items: [
+      { href: "/comptabilite/exercices",            label: "Exercices",            icon: Activity },
+      { href: "/comptabilite/parametres-societe",   label: "Société",              icon: Building2 },
+      { href: "/comptabilite/parametres",           label: "Paramètres compta",    icon: Settings },
+      { href: "/comptabilite/health",               label: "Santé compta",         icon: Stethoscope },
+      { href: "/comptabilite/plan-comptable",       label: "Plan comptable",       icon: BookOpen },
+      { href: "/comptabilite/exports",              label: "Exports PDF",          icon: FileText },
+    ],
+  },
+]
 
 // ── Section label ─────────────────────────────────────────────────────────────
 function SectionLabel({ label, collapsed }: { label: string; collapsed: boolean }) {
@@ -146,12 +188,20 @@ export default function Sidebar({ forceShow = false }: { forceShow?: boolean }) 
   const [openPrest, setOpenPrest] = useState(false)
   const [openVeh,   setOpenVeh]   = useState(false)
   const [openCom,   setOpenCom]   = useState(false)
+  // Patch 24/05/2026 - panneau cascade Comptabilite (s'ouvre a droite de la sidebar)
+  const [openCompta, setOpenCompta] = useState(false)
+  // Reste ouvert quand on est deja sur une page Compta apres navigation
+  useEffect(() => {
+    if (isComptaPath(pathname)) setOpenCompta(true)
+  }, [pathname])
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data.user))
   }, [])
 
   if (pathname === "/") return null
+  // PATCH Phase 4.2 — route publique /verify/[short_uuid] : pas de sidebar
+  if (pathname?.startsWith("/verify/")) return null
 
   const logout = async () => {
     await supabase.auth.signOut()
@@ -231,6 +281,85 @@ export default function Sidebar({ forceShow = false }: { forceShow?: boolean }) 
         <div className="space-y-0.5">
           {can("view_recettes") && <NavLink href="/recettes" label="Recettes" icon={Wallet}      collapsed={collapsed} />}
           {can("view_depenses") && <NavLink href="/depenses" label="Dépenses" icon={TrendingDown} collapsed={collapsed} />}
+          {/* Patch 24/05/2026 v2 - Compta en accordeon vertical (12 sous-items
+              indentes, deployes a la demande). Reproduit le pattern Boyah Transport
+              pour eviter l'effet "2 sidebars cote a cote" du panneau cascade v1.
+              Patch 24/05/2026 v3 - permission granulaire view_comptabilite
+              (au lieu de isDirecteur) pour permettre la delegation. */}
+          {can("view_comptabilite") && (collapsed ? (
+            // Mode collapsed : 1 seule icone, navigue vers /comptabilite directement
+            <NavLink href="/comptabilite" label="Comptabilité" icon={BookOpen} collapsed={collapsed} />
+          ) : (
+            <>
+              <button
+                type="button"
+                data-nav-active={isComptaPath(pathname)}
+                onClick={() => setOpenCompta(o => !o)}
+                className={`w-full relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 z-10
+                  ${isComptaPath(pathname)
+                    ? "text-indigo-700 dark:text-indigo-300"
+                    : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-gray-200"
+                  }`}
+              >
+                <motion.div
+                  whileHover={{ scale: 1.15 }}
+                  whileTap={{ scale: 0.9 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 15 }}
+                >
+                  <BookOpen size={17} className={isComptaPath(pathname) ? "text-indigo-500 dark:text-indigo-400" : "opacity-70"} />
+                </motion.div>
+                <span className="flex-1 text-left">Comptabilité</span>
+                <motion.span animate={{ rotate: openCompta ? 90 : 0 }} transition={{ duration: 0.2 }}>
+                  <ChevronRight size={13} className="opacity-50" />
+                </motion.span>
+              </button>
+
+              <AnimatePresence initial={false}>
+                {openCompta && (
+                  <motion.div
+                    key="compta-accordion"
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+                    className="overflow-hidden"
+                  >
+                    <div className="pl-4 ml-2 mt-1 mb-1 border-l border-gray-200 dark:border-[#1A2235] space-y-2">
+                      {COMPTA_GROUPS.map((group, gIdx) => (
+                        <div key={gIdx}>
+                          {group.header && (
+                            <p className="px-3 pt-2 pb-1 text-[9.5px] font-bold uppercase tracking-[0.14em] text-gray-400 dark:text-gray-600 select-none">
+                              {group.header}
+                            </p>
+                          )}
+                          <div className="space-y-0.5">
+                            {group.items.map(item => {
+                              const active = item.exact
+                                ? pathname === item.href
+                                : pathname === item.href || pathname.startsWith(item.href + "/")
+                              const Icon = item.icon
+                              return (
+                                <Link key={item.href} href={item.href}
+                                  className={`flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-xs font-medium transition
+                                    ${active
+                                      ? "text-indigo-700 dark:text-indigo-300 bg-indigo-50/70 dark:bg-indigo-500/10"
+                                      : "text-gray-500 dark:text-gray-500 hover:text-gray-800 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/[0.03]"
+                                    }`}
+                                >
+                                  <Icon size={12.5} className={active ? "text-indigo-500 dark:text-indigo-400" : "opacity-65"} />
+                                  <span className="truncate">{item.label}</span>
+                                </Link>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </>
+          ))}
         </div>
 
         <SectionLabel label="Services" collapsed={collapsed} />
@@ -367,6 +496,7 @@ export default function Sidebar({ forceShow = false }: { forceShow?: boolean }) 
           </div>
         )}
       </div>
+
     </motion.div>
   )
 }

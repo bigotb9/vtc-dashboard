@@ -17,6 +17,8 @@ export default function MobileNav() {
 
   // Masquer sur la page login
   if (pathname === "/") return null
+  // PATCH Phase 4.2 — route publique /verify/[short_uuid] : pas de mobile nav
+  if (pathname?.startsWith("/verify/")) return null
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40

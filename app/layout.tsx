@@ -21,6 +21,8 @@ function SidebarSpacer() {
   const pathname = usePathname()
   // Sur la page de login (/) la sidebar est masquée : pas d'espace à réserver
   if (pathname === "/") return null
+  // PATCH Phase 4.2 — route publique /verify/[short_uuid] : pas d'espace réservé
+  if (pathname?.startsWith("/verify/")) return null
   return (
     <div
       className="hidden md:block flex-shrink-0 transition-all duration-300"
@@ -29,9 +31,15 @@ function SidebarSpacer() {
   )
 }
 
+function isPublicRoute(pathname: string | null): boolean {
+  return !!pathname && pathname.startsWith("/verify/")
+}
+
 function AppShell({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const { open: searchOpen, setOpen: setSearchOpen } = useGlobalSearch()
+  const pathname = usePathname()
+  const publicRoute = isPublicRoute(pathname)
 
   // Écouter l'événement "open-sidebar" du MobileNav bouton "Plus"
   useEffect(() => {
@@ -39,6 +47,16 @@ function AppShell({ children }: { children: React.ReactNode }) {
     window.addEventListener("open-sidebar", handler)
     return () => window.removeEventListener("open-sidebar", handler)
   }, [])
+
+  // PATCH Phase 4.2 — Route publique /verify/[short_uuid] : shell minimal
+  // (pas de sidebar, pas de mobile nav, pas de padding qui briserait le full-bleed)
+  if (publicRoute) {
+    return (
+      <main className="min-h-screen bg-gray-50 dark:bg-[#080C14]">
+        {children}
+      </main>
+    )
+  }
 
   return (
     <div className="flex">
