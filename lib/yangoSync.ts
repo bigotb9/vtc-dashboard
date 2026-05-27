@@ -19,19 +19,33 @@ export function markSynced() {
     localStorage.setItem(SYNC_KEY, Date.now().toString())
 }
 
-/** Lance une sync incrémentale (dernières commandes) et retourne le nombre de courses importées. */
+/** Lance une sync incrémentale (dernières commandes) et retourne le nombre de courses importées.
+ *
+ * Patch 24/05/2026 : propage le vrai message d'erreur (status HTTP + message
+ * serveur) au lieu d'un libelle generique. Permet de diagnostiquer rapidement
+ * (vars d'env manquantes, API Yango KO, etc.).
+ */
 export async function runQuickSync(): Promise<{ synced: number; error?: string }> {
   try {
     const r = await fetch("/api/yango/sync-orders", { method: "POST" })
     const d = await r.json()
+    if (!r.ok) {
+      return { synced: 0, error: `HTTP ${r.status} : ${d.error || JSON.stringify(d).slice(0, 200)}` }
+    }
+    if (d.error) {
+      return { synced: 0, error: d.error }
+    }
     markSynced()
     return { synced: d.synced ?? 0 }
-  } catch {
-    return { synced: 0, error: "Erreur de synchronisation" }
+  } catch (e) {
+    return { synced: 0, error: `Erreur réseau : ${(e as Error).message || String(e)}` }
   }
 }
 
-/** Lance une sync complète depuis une date donnée, page par page. */
+/** Lance une sync complète depuis une date donnée, page par page.
+ *
+ * Patch 24/05/2026 : propage le vrai message d'erreur HTTP / serveur.
+ */
 export async function runFullSync(
   fromDate: string,
   onProgress: (total: number) => void
@@ -46,6 +60,12 @@ export async function runFullSync(
         body:    JSON.stringify({ from_date: fromDate }),
       })
       const d = await r.json()
+      if (!r.ok) {
+        return { total, error: `HTTP ${r.status} : ${d.error || JSON.stringify(d).slice(0, 200)}` }
+      }
+      if (d.error) {
+        return { total, error: d.error }
+      }
       total  += d.synced ?? 0
       hasMore = d.has_more === true
       onProgress(total)
@@ -53,7 +73,7 @@ export async function runFullSync(
     }
     markSynced()
     return { total }
-  } catch {
-    return { total, error: "Erreur lors du sync complet" }
+  } catch (e) {
+    return { total, error: `Erreur réseau : ${(e as Error).message || String(e)}` }
   }
 }
