@@ -1,5 +1,10 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { supabase } from "@/lib/supabaseClient"
+import { requirePermission } from "@/lib/requirePermission"
+
+// Auth Lot Z (26/05/2026 audit) : requirePermission("view_dashboard") — la
+// route etait ouverte (finding 2.4), exposant l'identite + telephones des
+// chauffeurs Yango.
 
 export const maxDuration = 30
 
@@ -34,7 +39,10 @@ async function fetchAllOrders(): Promise<OrderRow[]> {
   return all
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const auth = await requirePermission(req, "view_dashboard")
+  if (!auth.ok) return auth.response
+
   try {
     const now      = new Date()
     const weekAgo  = new Date(now.getTime() - 7  * 86400000)

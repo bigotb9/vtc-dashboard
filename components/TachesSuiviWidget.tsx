@@ -5,6 +5,7 @@ import { Wrench, CheckCircle2, Trash2, Plus, X } from "lucide-react"
 import Link from "next/link"
 import { motion, AnimatePresence } from "framer-motion"
 import { toast } from "@/lib/toast"
+import { authFetch } from "@/lib/authFetch"
 
 type Tache = {
   id:             string
@@ -28,14 +29,14 @@ export default function TachesSuiviWidget() {
 
   const load = async () => {
     setLoading(true)
-    const res  = await fetch("/api/taches?fait=false")
+    const res  = await authFetch("/api/taches?fait=false")
     const data = await res.json()
     setTaches(data.taches || [])
     setLoading(false)
   }
 
   const loadVehicules = async () => {
-    const res  = await fetch("/api/vehicules/list")
+    const res  = await authFetch("/api/vehicules/list")
     const data = await res.json()
     setVehicules(data.vehicules || [])
   }
@@ -43,9 +44,8 @@ export default function TachesSuiviWidget() {
   useEffect(() => { load(); loadVehicules() }, [])
 
   const cocher = async (id: string) => {
-    await fetch("/api/taches", {
+    await authFetch("/api/taches", {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id, fait: true }),
     })
     setTaches(t => t.filter(x => x.id !== id))
@@ -53,7 +53,7 @@ export default function TachesSuiviWidget() {
   }
 
   const supprimer = async (id: string) => {
-    await fetch(`/api/taches?id=${id}`, { method: "DELETE" })
+    await authFetch(`/api/taches?id=${id}`, { method: "DELETE" })
     setTaches(t => t.filter(x => x.id !== id))
     toast.success("Tâche supprimée")
   }
@@ -63,9 +63,8 @@ export default function TachesSuiviWidget() {
     setSaving(true)
     const v = vehicules.find(x => x.id_vehicule === Number(form.id_vehicule))
     if (!v) { setSaving(false); return }
-    const res  = await fetch("/api/taches", {
+    const res  = await authFetch("/api/taches", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         id_vehicule:     v.id_vehicule,
         immatriculation: v.immatriculation,

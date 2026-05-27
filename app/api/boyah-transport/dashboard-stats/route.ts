@@ -1,5 +1,9 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { supabase } from "@/lib/supabaseClient"
+import { requirePermission } from "@/lib/requirePermission"
+
+// Auth Lot Z (26/05/2026 audit) : requirePermission("view_dashboard") — la
+// route etait ouverte (finding 2.4), exposant les KPIs Boyah Transport.
 
 export const maxDuration = 30
 
@@ -34,7 +38,10 @@ async function fetchAllOrders(): Promise<RawOrder[]> {
   return all
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const auth = await requirePermission(req, "view_dashboard")
+  if (!auth.ok) return auth.response
+
   try {
     const orders = await fetchAllOrders()
 

@@ -1,16 +1,35 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 import { supabase } from "@/lib/supabaseClient"
 import Image from "next/image"
 
+/**
+ * Routes 100 % publiques (bypass total de l'AuthGuard).
+ * Cf. PATCH Phase 4.2 — /verify/[short_uuid] est accessible aux tiers
+ * (DGI, banque, auditeur) sans session Supabase.
+ */
+const PUBLIC_PATH_PREFIXES = ["/verify/"]
+
+function isPublicPath(p: string | null): boolean {
+  if (!p) return false
+  return PUBLIC_PATH_PREFIXES.some(prefix => p === prefix.replace(/\/$/, "") || p.startsWith(prefix))
+}
+
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
-  const router = useRouter()
-  const [loading, setLoading] = useState(true)
+  const router   = useRouter()
+  const pathname = usePathname()
+  const publicRoute = isPublicPath(pathname)
+  const [loading, setLoading] = useState(!publicRoute)
 
   useEffect(() => {
+    // Route publique : on bypass complètement la vérification de session.
+    if (publicRoute) {
+      setLoading(false)
+      return
+    }
 
     const checkSession = async () => {
       try {
@@ -39,7 +58,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     checkSession()
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [publicRoute])
 
   if (loading) {
     return (

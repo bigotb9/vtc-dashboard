@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react"
 import { Car, User, Link2, Link2Off, RefreshCw, CheckCircle, AlertCircle } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
+import { authFetch } from "@/lib/authFetch"
 
 type Chauffeur = { id_chauffeur: number; nom: string; actif: boolean; photo?: string | null }
 type Vehicule  = { id_vehicule: number; immatriculation: string; statut: string; type_vehicule?: string | null; photo?: string | null }
@@ -32,7 +33,7 @@ export default function AffectationWidget(props: Props) {
 
   const reload = useCallback(async () => {
     const param = isChauffeurMode ? `id_chauffeur=${props.id}` : `id_vehicule=${props.id}`
-    const res  = await fetch(`/api/affectations?${param}`)
+    const res  = await authFetch(`/api/affectations?${param}`)
     const data = await res.json()
     setAffectations(data.affectations || [])
   }, [props.id, isChauffeurMode])
@@ -42,7 +43,7 @@ export default function AffectationWidget(props: Props) {
       setLoading(true)
       const [, optRes] = await Promise.all([
         reload(),
-        fetch(isChauffeurMode ? "/api/vehicules/list" : "/api/chauffeurs/list"),
+        authFetch(isChauffeurMode ? "/api/vehicules/list" : "/api/chauffeurs/list"),
       ])
       const optData = await optRes.json()
       setOptions(isChauffeurMode ? (optData.vehicules || []) : (optData.chauffeurs || []))
@@ -58,7 +59,7 @@ export default function AffectationWidget(props: Props) {
       ? { id_chauffeur: props.id, id_vehicule: Number(selected) }
       : { id_chauffeur: Number(selected), id_vehicule: props.id }
 
-    const res  = await fetch("/api/affectations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+    const res  = await authFetch("/api/affectations", { method: "POST", body: JSON.stringify(body) })
     const data = await res.json()
     setSaving(false)
     if (data.success) {
@@ -75,7 +76,7 @@ export default function AffectationWidget(props: Props) {
     const body = isChauffeurMode
       ? { id_chauffeur: props.id, id_vehicule: affectations[0]?.id_vehicule }
       : { id_chauffeur: idChauffeur, id_vehicule: props.id }
-    const res  = await fetch("/api/affectations", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+    const res  = await authFetch("/api/affectations", { method: "DELETE", body: JSON.stringify(body) })
     const data = await res.json()
     setRemoving(null)
     if (data.success) { await reload(); setStatus("success"); setTimeout(() => setStatus("idle"), 3000) }

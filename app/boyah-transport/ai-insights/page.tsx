@@ -7,6 +7,7 @@ import {
   Instagram, Linkedin, Facebook, Zap, Target, Clock, Award,
   ArrowUpRight, ArrowDownRight, BarChart2,
 } from "lucide-react"
+import { authFetch } from "@/lib/authFetch"
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 type DriverStat = {
@@ -149,7 +150,7 @@ export default function AIInsightsBoyahTransport() {
   const loadData = useCallback(async () => {
     setLoading(true)
     try {
-      const res  = await fetch("/api/boyah-transport/driver-stats")
+      const res  = await authFetch("/api/boyah-transport/driver-stats")
       const data = await res.json()
       if (data.ok) { setDrivers(data.stats || []); setLastSync(new Date()) }
     } finally { setLoading(false) }
@@ -162,7 +163,7 @@ export default function AIInsightsBoyahTransport() {
     const actifs  = drivers.filter(d => d.status === "actif").length
     const total   = drivers.length
     const revMois = drivers.reduce((s, d) => s + d.coursesMois * (d.totalRevenue / Math.max(d.totalCourses, 1)), 0)
-    const res = await fetch("/api/boyah-transport/generate-post", {
+    const res = await authFetch("/api/boyah-transport/generate-post", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

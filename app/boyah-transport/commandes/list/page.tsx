@@ -6,6 +6,7 @@ import {
   Percent, Filter, ChevronLeft, ChevronRight, RefreshCw, Download,
 } from "lucide-react"
 import { shouldAutoSync, runQuickSync } from "@/lib/yangoSync"
+import { authFetch } from "@/lib/authFetch"
 
 const COMMISSION_RATE = 0.025
 const PAGE_LIMIT      = 100
@@ -50,7 +51,7 @@ export default function CommandesPage() {
   } | null>(null)
 
   const fetchKpis = useCallback(async () => {
-    const r = await fetch("/api/boyah-transport/dashboard-stats")
+    const r = await authFetch("/api/boyah-transport/dashboard-stats")
     const d = await r.json()
     if (d.ok) setKpis({
       completed:      d.totals.completed,

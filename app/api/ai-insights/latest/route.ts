@@ -3,16 +3,21 @@
  * Lit le dernier résultat d'analyse depuis Supabase (écrit par n8n).
  * Appelé au chargement de la page pour afficher la dernière analyse automatique.
  */
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { requirePermission } from "@/lib/requirePermission"
 
 const sb = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    // Auth Lot A securite 26/05/2026 : requirePermission("view_ai_insights").
+    const auth = await requirePermission(req, "view_ai_insights")
+    if (!auth.ok) return auth.response
+
     // Dernière analyse (auto ou manuelle)
     const { data: latest, error } = await sb
       .from("ai_insights")

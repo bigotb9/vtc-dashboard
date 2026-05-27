@@ -13,6 +13,7 @@ import {
   XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid
 } from "recharts"
 import { supabase } from "@/lib/supabaseClient"
+import { authFetch } from "@/lib/authFetch"
 
 type DriverInfo      = { id_chauffeur: number; nom: string; numero_wave: string | null }
 type VehiculeDrivers = Record<string, DriverInfo[]>
@@ -241,7 +242,7 @@ export default function AiInsightsBoyahGroup() {
 
   // ── Dernier rapport en base ──────────────────────────────────────
   useEffect(() => {
-    fetch("/api/ai-insights/latest")
+    authFetch("/api/ai-insights/latest")
       .then(r => r.json())
       .then((d) => { if (d.ok && d.analysis) setResult(d as ApiResult) })
       .catch(() => {})
@@ -285,7 +286,7 @@ export default function AiInsightsBoyahGroup() {
   const triggerAnalysis = async () => {
     setTriggering(true)
     try {
-      const res  = await fetch("/api/ai-insights/trigger", { method: "POST" })
+      const res  = await authFetch("/api/ai-insights/trigger", { method: "POST" })
       const data = await res.json() as ApiResult
       if (data.ok) setResult({ ...data, triggeredBy: "manual" })
       else setResult({ ok: false, analysis: {}, retardVehicules: [], isAfterNoon: false, totalVehicules: 0, generatedAt: "", error: data.error })

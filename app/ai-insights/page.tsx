@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabaseClient"
 import { AlertTriangle, Car, User, TrendingUp } from "lucide-react"
+import { authFetch } from "@/lib/authFetch"
 
 export default function AIInsightsPage() {
 
@@ -87,11 +88,8 @@ export default function AIInsightsPage() {
     setLoading(true)
 
     try {
-      const res = await fetch("/api/ai-insights", {
+      const res = await authFetch("/api/ai-insights", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
         body: JSON.stringify({ question })
       })
 

@@ -1,9 +1,17 @@
 import { NextRequest, NextResponse } from "next/server"
 import Anthropic from "@anthropic-ai/sdk"
+import { requirePermission } from "@/lib/requirePermission"
+
+// Auth Lot Z (26/05/2026 audit) : requirePermission("view_dashboard") — la
+// route etait ouverte (finding 2.4) et declenche un appel Claude Opus
+// (cout API). Sans auth, exposition a DoS de budget Anthropic.
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 export async function POST(req: NextRequest) {
+  const auth = await requirePermission(req, "view_dashboard")
+  if (!auth.ok) return auth.response
+
   try {
     const { stats, platform = "facebook", tone = "professionnel" } = await req.json() as { stats: unknown; platform: string; tone: string }
 

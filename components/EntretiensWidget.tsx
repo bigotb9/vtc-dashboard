@@ -8,6 +8,7 @@ import {
 } from "lucide-react"
 import { toast } from "@/lib/toast"
 import { motion, AnimatePresence } from "framer-motion"
+import { authFetch } from "@/lib/authFetch"
 
 // ── Types inspection ───────────────────────────────────────────────────────────
 type EtatBon   = "bon" | "mauvais" | "tres_mauvais"
@@ -278,7 +279,7 @@ export default function EntretiensWidget({ idVehicule, immatriculation }: { idVe
 
   const load = async () => {
     setLoading(true)
-    const res  = await fetch(`/api/entretiens?id_vehicule=${idVehicule}`)
+    const res  = await authFetch(`/api/entretiens?id_vehicule=${idVehicule}`)
     const data = await res.json()
     setEntretiens(data.entretiens || [])
     setLoading(false)
@@ -288,8 +289,8 @@ export default function EntretiensWidget({ idVehicule, immatriculation }: { idVe
   const save = async () => {
     if (!form.date_realise) return
     setSaving(true)
-    const res  = await fetch("/api/entretiens", {
-      method: "POST", headers: { "Content-Type": "application/json" },
+    const res  = await authFetch("/api/entretiens", {
+      method: "POST",
       body: JSON.stringify({ id_vehicule: idVehicule, immatriculation, ...form, km_vidange: Number(form.km_vidange) || null }),
     })
     const data = await res.json()
@@ -304,7 +305,7 @@ export default function EntretiensWidget({ idVehicule, immatriculation }: { idVe
   }
 
   const del = async (id: string) => {
-    await fetch(`/api/entretiens?id=${id}`, { method: "DELETE" })
+    await authFetch(`/api/entretiens?id=${id}`, { method: "DELETE" })
     toast.success("Vidange supprimée"); load()
   }
 

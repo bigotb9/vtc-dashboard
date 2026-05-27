@@ -13,6 +13,7 @@ import {
 import { motion } from "framer-motion"
 import Card3D from "@/components/Card3D"
 import { shouldAutoSync, runQuickSync, runFullSync } from "@/lib/yangoSync"
+import { authFetch } from "@/lib/authFetch"
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 type Stats = {
@@ -103,7 +104,7 @@ export default function BoyahDashboardPage() {
   const loadStats = useCallback(async () => {
     setLoading(true)
     try {
-      const r = await fetch("/api/boyah-transport/dashboard-stats")
+      const r = await authFetch("/api/boyah-transport/dashboard-stats")
       const d = await r.json()
       if (d.ok) setStats(d)
     } finally {

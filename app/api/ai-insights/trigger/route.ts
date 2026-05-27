@@ -3,9 +3,17 @@
  * Appelle le webhook n8n "Analyse On-demand".
  * n8n fait tout : fetche Supabase, appelle Claude, écrit en base, répond.
  */
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
+import { requirePermission } from "@/lib/requirePermission"
 
-export async function POST() {
+// Auth Lot Z (26/05/2026 audit) : requirePermission("view_ai_insights") — la
+// route etait ouverte (finding 2.4) et declenche un appel Claude via n8n
+// (cout API + temps de calcul prolonge jusqu'a 3 minutes).
+
+export async function POST(req: NextRequest) {
+  const auth = await requirePermission(req, "view_ai_insights")
+  if (!auth.ok) return auth.response
+
   const webhookUrl = process.env.N8N_WEBHOOK_ANALYSE_URL
 
   if (!webhookUrl) {

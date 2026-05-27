@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import Anthropic from "@anthropic-ai/sdk"
 import { createClient } from "@supabase/supabase-js"
+import { calculLoyerNet } from "@/lib/clients/calculLoyerNet"
 
 export const maxDuration = 60 // Vercel max pour plan Pro (évite les timeouts Claude Opus)
 
@@ -522,7 +523,8 @@ async function fetchContext(intent: IntentType) {
   //   en_retard / pas_encore_du / en_cours / futur).
   const fetchClients = async () => {
     const today = new Date()
-    const BOYAH_EXPENSE_CAP = 50_000
+    // Lot U (audit 27/05/2026) : delegation au helper calculLoyerNet pour
+    // la formule du loyer net (single source of truth).
 
     // Clients + véhicules sous gestion
     const [{ data: clientsRaw }, { data: vehsGestion }, { data: versementsRaw }] = await Promise.all([
@@ -552,7 +554,11 @@ async function fetchContext(intent: IntentType) {
           .select(`immatriculation, "Montant net", "Horodatage"`)
           .gte("Horodatage", from).lt("Horodatage", to),
         sb.from("depenses_vehicules")
-          .select("id_vehicule, montant, date_depense")
+          // Lot U (audit 27/05/2026) : type_depense recupere pour exclure les
+          // reversements du calcul de "depenses" cumulees par vehicule/mois
+          // (fix finding 1.1 — sinon les reversements gonflaient le surplus
+          // et minoraient le netDu calcule plus bas).
+          .select("id_vehicule, montant, date_depense, type_depense")
           .gte("date_depense", from).lt("date_depense", to),
       ])
       const map = new Map<number, VehMois>()
@@ -562,6 +568,9 @@ async function fetchContext(intent: IntentType) {
           .reduce((s, r) => s + Number((r as Record<string, unknown>)["Montant net"] || 0), 0)
         const depenses = (deps || [])
           .filter(d => d.id_vehicule === v.id_vehicule)
+          // Lot U : exclure les reversements (coherent avec PDF Releve + page Clients)
+          .filter(d => !String((d as { type_depense?: string | null }).type_depense ?? "")
+            .toLowerCase().includes("reversement"))
           .reduce((s, d) => s + Number(d.montant || 0), 0)
         map.set(v.id_vehicule, { id_vehicule: v.id_vehicule, revenu, depenses })
       }
@@ -601,8 +610,14 @@ async function fetchContext(intent: IntentType) {
         for (const v of vehsClient) {
           const vm = vehsMois.get(v.id_vehicule)
           if (!vm) continue
-          const surplus = Math.max(0, vm.depenses - BOYAH_EXPENSE_CAP)
-          netDu += Math.max(0, Number(v.montant_mensuel_client || 0) - surplus)
+          // Lot U : helper unique. Les reversements sont deja filtres en amont
+          // (cf. fetchAllVehMois ci-dessus), donc excludeReversements=false.
+          const { loyerNet } = calculLoyerNet(
+            Number(v.montant_mensuel_client || 0),
+            [{ montant: vm.depenses }],
+            { excludeReversements: false },
+          )
+          netDu += loyerNet
         }
         const verse = versMap.get(`${c.id}|${m}`) || 0
         return {
@@ -823,6 +838,28 @@ function buildUserContent(intent: IntentType, message: string, context: Record<s
 // ── Route principale ──────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
+    // ── Auth shared secret (Lot A securite 26/05/2026) ──────────────────────
+    // Les 4 workflows n8n (Telegram, rapport matinal, alertes auto, veille
+    // marche) doivent envoyer Authorization: Bearer ${AGENT_API_TOKEN}.
+    // Sans ce header, la route refuse toute requete (auparavant elle etait
+    // publique, exposant exfiltration totale des donnees financieres + cout
+    // illimite Anthropic/Tavily).
+    const expectedSecret = process.env.AGENT_API_TOKEN
+    if (!expectedSecret) {
+      console.error("[agent/process] AGENT_API_TOKEN manquant en env — route bloquee")
+      return NextResponse.json(
+        { ok: false, error: "Configuration serveur incomplete" },
+        { status: 500 }
+      )
+    }
+    const provided = req.headers.get("authorization")?.replace("Bearer ", "")
+    if (!provided || provided !== expectedSecret) {
+      return NextResponse.json(
+        { ok: false, error: "Authentification requise" },
+        { status: 401 }
+      )
+    }
+
     const body = await req.json()
     const {
       message = "",
