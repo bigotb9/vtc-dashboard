@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "lib/compta/**/*.ts",
+    "app/api/compta/**/*.ts",
+    "types/compta.ts",
+    "lib/supabaseAdmin.ts",
+    "lib/logActivity.ts"
+  ],
+  "exclude": ["node_modules", ".next"]
+}

@@ -1,0 +1,7 @@
+<!-- Placeholder SGCI — à remplacer par le logo officiel Société Générale Côte d'Ivoire -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-label="SGCI">
+  <rect width="48" height="48" rx="6" fill="#0F1118"/>
+  <rect x="6" y="22" width="36" height="4" fill="#E60028"/>
+  <text x="24" y="20" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="800" fill="#fff">SG</text>
+  <text x="24" y="40" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="9" font-weight="700" fill="#fff">CI</text>
+</svg>

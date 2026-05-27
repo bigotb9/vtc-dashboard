@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/yango/sync-orders?source=cron",
+      "schedule": "0 */2 * * *"
+    }
+  ]
+}
