@@ -44,3 +44,8 @@ next-env.d.ts
 .env*.local
 
 .claude/
+
+# Local backups + Supabase CLI temp
+*.bak
+*.bak[0-9]
+supabase/.temp/
