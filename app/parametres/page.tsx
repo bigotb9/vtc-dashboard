@@ -39,8 +39,6 @@ const ALL_ACTIONS: { key: string; label: string; category: string }[] = [
   { key: "sync_orders",          label: "Synchroniser les commandes",         category: "Boyah Transport" },
   { key: "create_driver",        label: "Créer un prestataire Yango",         category: "Boyah Transport" },
   // Système
-  { key: "view_ai_insights",     label: "Accéder aux AI Insights",            category: "Système" },
-  { key: "generate_ai_insights", label: "Déclencher une analyse IA",          category: "Système" },
   { key: "view_journal",         label: "Voir le journal d'activité",         category: "Système" },
   { key: "manage_users",         label: "Gérer les utilisateurs",             category: "Système" },
 ]

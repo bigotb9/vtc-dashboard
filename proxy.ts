@@ -12,7 +12,7 @@ export const config = {
     "/chauffeurs",
     "/recettes",
     "/depenses",
-    "/ai-insights",
+    "/cockpit",
     "/parametres"
   ]
 }

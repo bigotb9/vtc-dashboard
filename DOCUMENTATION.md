@@ -57,11 +57,10 @@ vtc-dashboard/
 │   ├── clients/               # Propriétaires de véhicules sous gestion
 │   ├── recettes/              # Liste recettes Wave + suivi calendrier
 │   ├── depenses/              # Saisie + listing + analyses
-│   ├── ai-insights/           # Ancienne page IA (Boyah Group v1)
-│   ├── ai-insights-boyah-group/   # Nouvelle page IA (Boyah Group v2)
+│   ├── cockpit/               # Cockpit Boyah (KPIs + alertes + conversations + flotte)
 │   ├── boyah-transport/       # Sous-domaine Boyah Transport
 │   │   ├── dashboard/         # Stats agrégées Yango
-│   │   ├── ai-insights/       # IA spécifique prestataires
+│   │   ├── ai-insights/       # IA spécifique prestataires (page distincte, conservée)
 │   │   ├── commandes/list/    # Commandes Yango
 │   │   ├── prestataires/{create,list}/
 │   │   └── vehicules/{create,list}/
@@ -179,7 +178,7 @@ Les tables ne sont pas toutes décrites dans une migration unique — la plupart
 - `vue_depenses_categories`, `vue_depenses_par_categorie`, `vue_depenses_journalieres`, `vue_dashboard_depenses`.
 - `vue_ca_journalier`, `vue_ca_mensuel`, `vue_ca_vehicules`, `vue_ca_vehicule_jour`, `vue_ca_chauffeur_jour`.
 - `vue_chauffeurs_vehicules`, `classement_chauffeurs`.
-- `vue_profit_journalier`, `vue_ai_insights_today`.
+- `vue_profit_journalier` (`vue_ai_insights_today` conservée en archive, plus consommée depuis la suppression du module AI Insights le 27/05/2026).
 
 Storage buckets Supabase utilisés : `vehicules`, `chauffeurs`, `avatars` (10 Mo max, JPEG/PNG/WebP/GIF, voir `app/api/upload/route.ts`).
 
@@ -192,7 +191,7 @@ Storage buckets Supabase utilisés : `vehicules`, `chauffeurs`, `avatars` (10 Mo
 - Supabase Auth (email + mot de passe).
 - Page `/` = login (`app/page.tsx`) — affiche aussi des KPIs en temps réel (véhicules actifs, chauffeurs, courses Yango du mois).
 - `<AuthGuard>` (utilisé dans `app/layout.tsx`) vérifie `supabase.auth.getSession()` et redirige vers `/` si pas de session.
-- `proxy.ts` est un middleware Next.js stub (matcher préparé pour `/dashboard`, `/vehicules`, `/chauffeurs`, `/recettes`, `/depenses`, `/ai-insights`, `/parametres`) — il n'applique pas de logique pour le moment.
+- `proxy.ts` est un middleware Next.js stub (matcher préparé pour `/dashboard`, `/vehicules`, `/chauffeurs`, `/recettes`, `/depenses`, `/cockpit`, `/parametres`) — il n'applique pas de logique pour le moment.
 - Côté API serveur : token Bearer extrait du header `Authorization` puis `supabaseAdmin.auth.getUser(token)`.
 
 ### Rôles
@@ -205,7 +204,7 @@ Trois rôles dans `profiles.role` : `directeur`, `admin`, `dispatcher`.
   - Finances : `view_recettes`, `manage_recettes`, `view_depenses`, `manage_depenses`, `export_pdf`
   - Flotte : `view_chauffeurs`, `create_chauffeur`, `edit_chauffeur`, `delete_chauffeur`, `view_vehicules`, `create_vehicle`, `edit_vehicle`, `delete_vehicle`, `manage_clients`
   - Boyah Transport : `view_boyah_dashboard`, `view_orders`, `sync_orders`, `create_driver`
-  - Système : `view_ai_insights`, `generate_ai_insights`, `view_journal`, `manage_users`
+  - Système : `view_journal`, `manage_users`
 
 ### Helpers
 
@@ -303,9 +302,16 @@ Server fetch en parallèle : `vue_dashboard_depenses`, `vue_depenses_par_categor
 
 `/depenses/create` — formulaire dédié.
 
-### `/ai-insights` (legacy) et `/ai-insights-boyah-group` (Boyah Group v2)
+### `/cockpit` (Cockpit Boyah)
 
-Deux versions co-existent. La nouvelle (`/ai-insights-boyah-group`) consomme `/api/ai-insights` qui appelle Claude Sonnet 4.6 et reçoit un JSON structuré (résumé exécutif, score santé, recos chiffrées, alertes, plan 30j) — exporté en PDF via `exportInsightsPdf`.
+Tableau de bord d'action quotidien (remplace l'ancien système AI Insights legacy retiré le 27/05/2026). 4 zones :
+
+- **KPIs vitaux** : cashflow jour, activité flotte (courses Yango / objectif), véhicules en retard (count + montant dû), dette clients
+- **Alertes à traiter aujourd'hui** : retards versement (manquant / insuffisant), caisses négatives, marge en baisse, top performers — bouton "Marquer fait" persisté en localStorage par jour
+- **Conversations à préparer** : auto-suggestions WhatsApp templatées + liste todos partagée (table `cockpit_todos`, RLS authenticated)
+- **Mini-radar flotte** : tuile par véhicule (à jour / retard / pause) — calcul via `lib/completude/calculCompletude.ts` (source de vérité unique partagée avec le widget Suivi versements)
+
+Endpoints : `/api/cockpit/{kpis,alertes,conversations,todos,flotte}`. Refresh auto 60s, refresh manuel, gestion erreur par zone.
 
 ### `/boyah-transport/dashboard`
 
@@ -383,11 +389,16 @@ Lecture de `activity_logs` avec pagination, recherche, filtres par catégorie d'
 
 | Route | Méthodes | Rôle |
 |---|---|---|
-| `/api/ai-insights` | GET | Pipeline complet : fetch en parallèle (chauffeurs, véhicules, recettes, dépenses, ca, classement) → enrichissement (retards de paiement, agrégats financiers) → prompt Claude Sonnet 4.6 → JSON structuré (résumé exécutif, score santé global/financier/opérationnel/croissance, points forts/faibles, opportunités, benchmark marché, recommandations chiffrées, alertes, plan 30 jours) |
-| `/api/ai-insights/latest` | GET | Dernier rapport stocké |
-| `/api/ai-insights/trigger` | POST | Déclenchement manuel |
-| `/api/ai-insights/route.ts` (Boyah Group nouvelle gen) | POST | Question libre à l'assistant |
 | `/api/agent/process` | POST | **Cerveau de BOYA** (voir section 11) |
+| `/api/cockpit/kpis` | GET | 4 KPIs vitaux du Cockpit (cashflow, activité, retards, dette clients) |
+| `/api/cockpit/alertes` | GET | Alertes consolidées (retard véhicule, caisse négative, marge baisse, top performer) |
+| `/api/cockpit/conversations` | GET | Messages WhatsApp templatés (relance retards + félicitations) |
+| `/api/cockpit/todos` | GET/POST | Liste partagée d'actions équipe |
+| `/api/cockpit/todos/[id]` | PATCH/DELETE | Toggle done / édition / suppression d'une tâche |
+| `/api/cockpit/flotte` | GET | Mini-radar flotte (1 entrée par véhicule, statut à jour/retard/pause) |
+| `/api/completude` | GET | Calendrier de complétude versements (widget Suivi versements + source partagée Cockpit) |
+
+> Le système legacy AI Insights (`/api/ai-insights*`) a été retiré le 27/05/2026 et remplacé par le Cockpit Boyah. La table `ai_insights` est conservée en archive.
 
 ### Domaine Admin / Audit
 
@@ -524,9 +535,8 @@ Côté front (`lib/yangoSync.ts`) :
 
 ## 15. Génération de PDF (`lib/exportPdf.ts`)
 
-5 helpers exposés :
+Helpers exposés :
 
-- `exportInsightsPdf({score, resumeExecutif, recommandations, alertes, plan30j, retardVehicules, …})` — rapport AI Insights complet avec banner indigo + logo
 - `exportChauffeurFichePdf({nom, numeroWave, …, recettes})` — fiche chauffeur
 - `exportVehiculeFichePdf({immatriculation, …, recettes})` — fiche véhicule
 - `exportRecettesPdf(recettes)` — listing des recettes avec total
@@ -590,7 +600,7 @@ Déployé sur Vercel (`bigotb9s-projects/vtc-dashboard`, plan Hobby). `next.conf
 4. **Le directeur bypass tout** — toute nouvelle action doit être ajoutée à `ALL_ACTIONS` dans `app/parametres/page.tsx` ET vérifiée via `requirePermission()` côté API. Sinon les non-directeurs ne pourront jamais voir/exécuter l'action via la matrice.
 5. **L'agent BOYA garde une mémoire long terme** en base. Évolution des prompts/lexique = penser à l'historique cumulé. Marqueur d'extraction : `[MEM]cat|cle|valeur|importance[/MEM]` (la cle est UNIQUE → upsert).
 6. **Les routes API qui mutent** doivent appeler `logActivity()` après l'opération (pour que le journal d'activité reste exhaustif).
-7. **La page `/ai-insights` est legacy** — la nouvelle est `/ai-insights-boyah-group`. À harmoniser à terme.
+7. **Le module AI Insights a été retiré le 27/05/2026** — remplacé par `/cockpit` (Cockpit Boyah). La table `ai_insights` et la vue `vue_ai_insights_today` sont conservées en archive mais ne sont plus consommées par aucune page.
 8. **Sous-domaine Boyah Transport ≠ Boyah Group** — modèle économique différent (commission 2,5 % vs versement quotidien fixe). Ne pas mélanger les KPIs ou le vocabulaire.
 9. **Pour toute opération financière sur les clients sous gestion** : se rappeler que **c'est Boyah qui verse de l'argent AU client**, jamais l'inverse. Le calcul `net_client = montant_mensuel - max(0, depenses - 50 000)` doit être respecté partout (cap à 50 000 FCFA pour la part absorbée par Boyah, surplus déduit du dû au client).
 10. **`proxy.ts`** est un middleware stub — à enrichir si on veut filtrer les routes côté Edge avant qu'elles atteignent les pages.

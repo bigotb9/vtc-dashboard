@@ -32,7 +32,6 @@ export type Permission =
   // Boyah Transport
   | "view_boyah_dashboard" | "view_orders" | "sync_orders" | "create_driver"
   // Système
-  | "view_ai_insights" | "generate_ai_insights"
   | "view_journal"     | "manage_users"
   | "view_reports"
 

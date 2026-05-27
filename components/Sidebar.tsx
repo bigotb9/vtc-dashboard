@@ -8,9 +8,9 @@ import { supabase } from "@/lib/supabaseClient"
 import { ThemeToggle } from "@/components/theme-toggle"
 import {
   LayoutDashboard, Car, Users, Wallet, TrendingDown,
-  Brain, Settings, Truck, ChevronDown, ChevronRight,
+  Settings, Truck, ChevronDown, ChevronRight,
   LogOut, Building2, UserCheck, Activity, PanelLeftClose, PanelLeftOpen, MapPin, BookOpen,
-  Coins, Folder, Stethoscope, FileText, ArrowDownUp, Archive
+  Coins, Folder, Stethoscope, FileText, ArrowDownUp, Archive, Gauge
 } from "lucide-react"
 import { useProfile } from "@/hooks/useProfile"
 import { motion, AnimatePresence } from "framer-motion"
@@ -441,8 +441,8 @@ export default function Sidebar({ forceShow = false }: { forceShow?: boolean }) 
 
         <SectionLabel label="Système" collapsed={collapsed} />
         <div className="space-y-0.5">
-          {can("view_ai_insights") && <NavLink href="/ai-insights-boyah-group" label="AI Insights" icon={Brain}    collapsed={collapsed} />}
-          {isDirecteur            && <NavLink href="/journal-activite"        label="Journal"     icon={Activity} collapsed={collapsed} />}
+          {can("view_dashboard") && <NavLink href="/cockpit"           label="Cockpit"    icon={Gauge}    collapsed={collapsed} />}
+          {isDirecteur           && <NavLink href="/journal-activite" label="Journal"    icon={Activity} collapsed={collapsed} />}
           <NavLink href="/parametres" label="Paramètres" icon={Settings} collapsed={collapsed} />
         </div>
       </div>
