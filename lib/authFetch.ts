@@ -9,10 +9,14 @@ export async function authFetch(url: string, options: RequestInit = {}): Promise
   const { data } = await supabase.auth.getSession()
   const token = data.session?.access_token
 
+  // Ne PAS forcer Content-Type quand le body est FormData :
+  // le browser doit calculer lui-meme "multipart/form-data; boundary=..."
+  const isFormData = options.body instanceof FormData
+
   return fetch(url, {
     ...options,
     headers: {
-      "Content-Type": "application/json",
+      ...(isFormData ? {} : { "Content-Type": "application/json" }),
       ...(options.headers || {}),
       ...(token ? { "Authorization": `Bearer ${token}` } : {}),
     },

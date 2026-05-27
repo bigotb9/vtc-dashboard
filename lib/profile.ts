@@ -22,6 +22,13 @@ export type Permission =
   | "view_chauffeurs" | "create_chauffeur" | "edit_chauffeur" | "delete_chauffeur"
   | "view_vehicules"  | "create_vehicle"   | "edit_vehicle"   | "delete_vehicle"
   | "manage_clients"
+  // Comptabilite (Phase 4.x - ajoute 24/05/2026)
+  // view_comptabilite : voir le module (Dashboard compta, Comptes & Caisses, Categories, Tiers, etats)
+  // manage_comptabilite : saisir/modifier les operations comptables
+  // manage_exercices : cloturer un exercice (action irreversible)
+  // manage_societe : modifier les parametres societe (RCCM, logo, etc.)
+  | "view_comptabilite" | "manage_comptabilite"
+  | "manage_exercices"  | "manage_societe"
   // Boyah Transport
   | "view_boyah_dashboard" | "view_orders" | "sync_orders" | "create_driver"
   // Système
