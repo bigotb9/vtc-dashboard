@@ -13,7 +13,7 @@ import { supabase } from "@/lib/supabaseClient"
 import { requirePermission } from "@/lib/requirePermission"
 
 export async function GET(req: NextRequest) {
-  const auth = await requirePermission(req, "manage_clients")
+  const auth = await requirePermission(req, "view_clients")
   if (!auth.ok) return auth.response
 
   const { data, error } = await supabase

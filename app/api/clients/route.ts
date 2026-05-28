@@ -51,7 +51,7 @@ type ClientRow = {
 //   - coercition Number sur les ids pour eviter mismatch type string/number
 export async function GET(req: NextRequest) {
   try {
-    const auth = await requirePermission(req, "manage_clients")
+    const auth = await requirePermission(req, "view_clients")
     if (!auth.ok) return auth.response
 
     const mois = req.nextUrl.searchParams.get("mois") || new Date().toISOString().slice(0, 7)
@@ -292,7 +292,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const auth = await requirePermission(req, "manage_clients")
+    const auth = await requirePermission(req, "create_client")
     if (!auth.ok) return auth.response
 
     const body = await req.json()

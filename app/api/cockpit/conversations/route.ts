@@ -45,7 +45,7 @@ function tpl(template: string, vars: Record<string, string | number>): string {
 }
 
 export async function GET(req: NextRequest) {
-  const auth = await requirePermission(req, "view_dashboard")
+  const auth = await requirePermission(req, "view_cockpit")
   if (!auth.ok) return auth.response
 
   const now = new Date()

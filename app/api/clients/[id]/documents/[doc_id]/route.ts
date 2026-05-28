@@ -19,7 +19,7 @@ export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string; doc_id: string }> }) {
-  const auth = await requirePermission(req, "manage_clients")
+  const auth = await requirePermission(req, "edit_client")
   if (!auth.ok) return auth.response
 
   const token = req.headers.get("authorization")?.replace("Bearer ", "") || ""

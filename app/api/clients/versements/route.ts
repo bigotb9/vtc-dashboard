@@ -10,7 +10,7 @@ const supabaseAdmin = createClient(
 // GET /api/clients/versements?id_client=X
 export async function GET(req: NextRequest) {
   try {
-    const auth = await requirePermission(req, "manage_clients")
+    const auth = await requirePermission(req, "view_clients")
     if (!auth.ok) return auth.response
 
     const id_client = req.nextUrl.searchParams.get("id_client")
@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
 // XOR : exactement un des deux doit etre renseigne (la contrainte BD le verifie).
 export async function POST(req: NextRequest) {
   try {
-    const auth = await requirePermission(req, "manage_clients")
+    const auth = await requirePermission(req, "edit_client")
     if (!auth.ok) return auth.response
 
     const body = await req.json()
@@ -115,7 +115,7 @@ export async function POST(req: NextRequest) {
 // DELETE /api/clients/versements?id_client=X&mois=2026-03
 export async function DELETE(req: NextRequest) {
   try {
-    const auth = await requirePermission(req, "manage_clients")
+    const auth = await requirePermission(req, "edit_client")
     if (!auth.ok) return auth.response
 
     const id_client = req.nextUrl.searchParams.get("id_client")

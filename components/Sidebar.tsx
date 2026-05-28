@@ -274,7 +274,7 @@ export default function Sidebar({ forceShow = false }: { forceShow?: boolean }) 
           {can("view_vehicules")  && <NavLink href="/vehicules"       label="Véhicules"  icon={Car}             collapsed={collapsed} />}
           {can("view_vehicules")  && <NavLink href="/vehicules/carte" label="GPS Live"   icon={MapPin}          collapsed={collapsed} />}
           {can("view_chauffeurs") && <NavLink href="/chauffeurs"      label="Chauffeurs" icon={Users}           collapsed={collapsed} />}
-          {can("manage_clients")  && <NavLink href="/clients"         label="Clients"    icon={UserCheck}       collapsed={collapsed} />}
+          {can("view_clients")    && <NavLink href="/clients"         label="Clients"    icon={UserCheck}       collapsed={collapsed} />}
         </div>
 
         <SectionLabel label="Finances" collapsed={collapsed} />
@@ -441,7 +441,7 @@ export default function Sidebar({ forceShow = false }: { forceShow?: boolean }) 
 
         <SectionLabel label="Système" collapsed={collapsed} />
         <div className="space-y-0.5">
-          {can("view_dashboard") && <NavLink href="/cockpit"           label="Cockpit"    icon={Gauge}    collapsed={collapsed} />}
+          {can("view_cockpit")   && <NavLink href="/cockpit"           label="Cockpit"    icon={Gauge}    collapsed={collapsed} />}
           {isDirecteur           && <NavLink href="/journal-activite" label="Journal"    icon={Activity} collapsed={collapsed} />}
           <NavLink href="/parametres" label="Paramètres" icon={Settings} collapsed={collapsed} />
         </div>

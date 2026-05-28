@@ -27,7 +27,7 @@ const MIMES_AUTORISES = new Set([
 ])
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const auth = await requirePermission(req, "manage_clients")
+  const auth = await requirePermission(req, "view_clients")
   if (!auth.ok) return auth.response
 
   const { id } = await ctx.params
@@ -59,7 +59,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
 }
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const auth = await requirePermission(req, "manage_clients")
+  const auth = await requirePermission(req, "edit_client")
   if (!auth.ok) return auth.response
 
   const token = req.headers.get("authorization")?.replace("Bearer ", "") || ""

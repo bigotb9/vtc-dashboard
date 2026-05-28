@@ -35,7 +35,7 @@ function isUuid(s: string): boolean {
 }
 
 export async function PATCH(req: NextRequest, ctx: Ctx) {
-  const auth = await requirePermission(req, "view_dashboard")
+  const auth = await requirePermission(req, "view_cockpit")
   if (!auth.ok) return auth.response
 
   const { id } = await ctx.params
@@ -116,7 +116,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
 }
 
 export async function DELETE(req: NextRequest, ctx: Ctx) {
-  const auth = await requirePermission(req, "view_dashboard")
+  const auth = await requirePermission(req, "view_cockpit")
   if (!auth.ok) return auth.response
 
   const { id } = await ctx.params

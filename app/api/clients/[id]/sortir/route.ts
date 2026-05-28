@@ -30,7 +30,7 @@ export const dynamic = "force-dynamic"
 type SortVehicules = "hors_gestion" | "transferer" | "retirer"
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const auth = await requirePermission(req, "manage_clients")
+  const auth = await requirePermission(req, "delete_client")
   if (!auth.ok) return auth.response
 
   const token = req.headers.get("authorization")?.replace("Bearer ", "") || ""

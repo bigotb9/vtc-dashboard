@@ -24,7 +24,7 @@ export const dynamic = "force-dynamic"
 const MOIS_RE = /^\d{4}-\d{2}$/
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string; mois: string }> }) {
-  const auth = await requirePermission(req, "manage_clients")
+  const auth = await requirePermission(req, "view_clients")
   if (!auth.ok) return auth.response
 
   const { id, mois } = await ctx.params

@@ -21,7 +21,9 @@ export type Permission =
   // Flotte
   | "view_chauffeurs" | "create_chauffeur" | "edit_chauffeur" | "delete_chauffeur"
   | "view_vehicules"  | "create_vehicle"   | "edit_vehicle"   | "delete_vehicle"
-  | "manage_clients"
+  // Clients (sous-gestion, asset management) - permissions granulaires depuis le 27/05/2026
+  // (ex-manage_clients splitee en 4 verbes : voir / creer / modifier / supprimer)
+  | "view_clients"    | "create_client"    | "edit_client"    | "delete_client"
   // Comptabilite (Phase 4.x - ajoute 24/05/2026)
   // view_comptabilite : voir le module (Dashboard compta, Comptes & Caisses, Categories, Tiers, etats)
   // manage_comptabilite : saisir/modifier les operations comptables
@@ -32,7 +34,7 @@ export type Permission =
   // Boyah Transport
   | "view_boyah_dashboard" | "view_orders" | "sync_orders" | "create_driver"
   // Système
-  | "view_journal"     | "manage_users"
+  | "view_cockpit"     | "view_journal"     | "manage_users"
   | "view_reports"
 
 // Récupère le profil de l'utilisateur connecté

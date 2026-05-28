@@ -23,6 +23,10 @@ const ALL_ACTIONS: { key: string; label: string; category: string }[] = [
   { key: "view_depenses",        label: "Voir les dépenses",                  category: "Finances" },
   { key: "manage_depenses",      label: "Saisir / modifier les dépenses",     category: "Finances" },
   { key: "export_pdf",           label: "Exporter des rapports PDF",          category: "Finances" },
+  { key: "view_comptabilite",    label: "Accéder au module Comptabilité",     category: "Finances" },
+  { key: "manage_comptabilite",  label: "Saisir / modifier les opérations",   category: "Finances" },
+  { key: "manage_exercices",     label: "Clôturer un exercice",               category: "Finances" },
+  { key: "manage_societe",       label: "Modifier les paramètres société",    category: "Finances" },
   // Flotte
   { key: "view_chauffeurs",      label: "Voir les chauffeurs",                category: "Flotte" },
   { key: "create_chauffeur",     label: "Créer un chauffeur",                 category: "Flotte" },
@@ -32,13 +36,17 @@ const ALL_ACTIONS: { key: string; label: string; category: string }[] = [
   { key: "create_vehicle",       label: "Créer un véhicule",                  category: "Flotte" },
   { key: "edit_vehicle",         label: "Modifier un véhicule",               category: "Flotte" },
   { key: "delete_vehicle",       label: "Supprimer un véhicule",              category: "Flotte" },
-  { key: "manage_clients",       label: "Gérer les clients",                  category: "Flotte" },
+  { key: "view_clients",         label: "Voir les clients",                   category: "Flotte" },
+  { key: "create_client",        label: "Créer un client",                    category: "Flotte" },
+  { key: "edit_client",          label: "Modifier un client (versements, documents)", category: "Flotte" },
+  { key: "delete_client",        label: "Sortir / désactiver un client",      category: "Flotte" },
   // Boyah Transport
   { key: "view_boyah_dashboard", label: "Voir le dashboard Boyah Transport",  category: "Boyah Transport" },
   { key: "view_orders",          label: "Voir les commandes Yango",           category: "Boyah Transport" },
   { key: "sync_orders",          label: "Synchroniser les commandes",         category: "Boyah Transport" },
   { key: "create_driver",        label: "Créer un prestataire Yango",         category: "Boyah Transport" },
   // Système
+  { key: "view_cockpit",         label: "Accéder au Cockpit",                 category: "Système" },
   { key: "view_journal",         label: "Voir le journal d'activité",         category: "Système" },
   { key: "manage_users",         label: "Gérer les utilisateurs",             category: "Système" },
 ]
