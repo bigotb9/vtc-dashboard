@@ -7,7 +7,7 @@
 
 import type { NextRequest } from "next/server"
 import { logActivity } from "@/lib/logActivity"
-import { requireDirecteurCompta } from "@/lib/compta/auth"
+import { requireComptaPermission } from "@/lib/compta/auth"
 import { comptaError, comptaOk } from "@/lib/compta/errors"
 import { safeParse, exerciceCreateSchema } from "@/lib/compta/validators"
 import { listExercices } from "@/lib/compta/exercices/listExercices"
@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
 export async function GET(req: NextRequest) {
-  const auth = await requireDirecteurCompta(req)
+  const auth = await requireComptaPermission(req, "view_comptabilite")
   if (!auth.ok) return auth.response
   try {
     const items = await listExercices()
@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await requireDirecteurCompta(req)
+  const auth = await requireComptaPermission(req, "manage_exercices")
   if (!auth.ok) return auth.response
 
   let body: unknown = {}

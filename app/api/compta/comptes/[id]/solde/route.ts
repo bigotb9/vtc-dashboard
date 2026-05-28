@@ -10,7 +10,7 @@
 
 import type { NextRequest } from "next/server"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
-import { requireDirecteurCompta } from "@/lib/compta/auth"
+import { requireComptaPermission } from "@/lib/compta/auth"
 import { comptaError, comptaOk } from "@/lib/compta/errors"
 import { getSoldeCompteDetail } from "@/lib/compta/soldes"
 
@@ -21,7 +21,7 @@ type RouteCtx = { params: Promise<{ id: string }> }
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
 export async function GET(req: NextRequest, ctx: RouteCtx) {
-  const auth = await requireDirecteurCompta(req)
+  const auth = await requireComptaPermission(req, "view_comptabilite")
   if (!auth.ok) return auth.response
 
   const { id } = await ctx.params

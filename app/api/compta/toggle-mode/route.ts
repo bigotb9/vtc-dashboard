@@ -25,7 +25,7 @@
 import type { NextRequest } from "next/server"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import { logActivity } from "@/lib/logActivity"
-import { requireDirecteurCompta } from "@/lib/compta/auth"
+import { requireComptaPermission } from "@/lib/compta/auth"
 import { comptaError, comptaOk } from "@/lib/compta/errors"
 import { toggleModeSchema, safeParse } from "@/lib/compta/validators"
 import { genererEcritureFromOperation, EcritureError } from "@/lib/compta/ecritures"
@@ -172,7 +172,7 @@ async function genererEcrituresRetroactives(): Promise<{
 
 export async function POST(req: NextRequest) {
   const t0   = Date.now()
-  const auth = await requireDirecteurCompta(req)
+  const auth = await requireComptaPermission(req, "manage_comptabilite")
   if (!auth.ok) return auth.response
 
   // Query param ?force=true (Écran 7 §7.4) : régénère les écritures même

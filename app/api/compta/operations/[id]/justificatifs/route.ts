@@ -7,7 +7,7 @@
 
 import type { NextRequest } from "next/server"
 import { logActivity } from "@/lib/logActivity"
-import { requireDirecteurCompta } from "@/lib/compta/auth"
+import { requireComptaPermission } from "@/lib/compta/auth"
 import { comptaError, comptaOk } from "@/lib/compta/errors"
 import { uploadJustificatif } from "@/lib/compta/justificatifs/uploadJustificatif"
 import { listJustificatifs } from "@/lib/compta/justificatifs/listJustificatifs"
@@ -19,7 +19,7 @@ type RouteCtx = { params: Promise<{ id: string }> }
 
 // ─── GET : liste enrichie + signed URLs ──────────────────────────────────────
 export async function GET(req: NextRequest, ctx: RouteCtx) {
-  const auth = await requireDirecteurCompta(req)
+  const auth = await requireComptaPermission(req, "view_comptabilite")
   if (!auth.ok) return auth.response
   const { id } = await ctx.params
   try {
@@ -33,7 +33,7 @@ export async function GET(req: NextRequest, ctx: RouteCtx) {
 
 // ─── POST : upload multipart/form-data field 'file' ──────────────────────────
 export async function POST(req: NextRequest, ctx: RouteCtx) {
-  const auth = await requireDirecteurCompta(req)
+  const auth = await requireComptaPermission(req, "manage_comptabilite")
   if (!auth.ok) return auth.response
   const { id: operationId } = await ctx.params
 

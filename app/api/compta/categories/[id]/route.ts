@@ -16,7 +16,7 @@
 import type { NextRequest } from "next/server"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import { logActivity } from "@/lib/logActivity"
-import { requireDirecteurCompta } from "@/lib/compta/auth"
+import { requireComptaPermission } from "@/lib/compta/auth"
 import { comptaError, comptaOk } from "@/lib/compta/errors"
 import { categorieUpdateSchema, safeParse } from "@/lib/compta/validators"
 import { checkMappingCoherence } from "../route"
@@ -30,7 +30,7 @@ type RouteCtx = { params: Promise<{ id: string }> }
 // Renvoie : meta + mapping SYSCOHADA + journal + 4 stats d'usage (volume,
 // nb_ops, montant_moyen, dernière utilisation) + 5 dernières opérations.
 export async function GET(req: NextRequest, ctx: RouteCtx) {
-  const auth = await requireDirecteurCompta(req)
+  const auth = await requireComptaPermission(req, "view_comptabilite")
   if (!auth.ok) return auth.response
 
   const { id } = await ctx.params
@@ -133,7 +133,7 @@ export async function GET(req: NextRequest, ctx: RouteCtx) {
 
 // ─── PATCH ────────────────────────────────────────────────────────────────────
 export async function PATCH(req: NextRequest, ctx: RouteCtx) {
-  const auth = await requireDirecteurCompta(req)
+  const auth = await requireComptaPermission(req, "manage_comptabilite")
   if (!auth.ok) return auth.response
 
   const { id } = await ctx.params
@@ -224,7 +224,7 @@ export async function PATCH(req: NextRequest, ctx: RouteCtx) {
 // Sinon → 409 CONFLICT explicite (pas de soft-archive silencieux ici).
 // Pour désactiver une catégorie, passer par PATCH { actif: false }.
 export async function DELETE(req: NextRequest, ctx: RouteCtx) {
-  const auth = await requireDirecteurCompta(req)
+  const auth = await requireComptaPermission(req, "manage_comptabilite")
   if (!auth.ok) return auth.response
 
   const { id } = await ctx.params

@@ -7,7 +7,7 @@
 
 import type { NextRequest } from "next/server"
 import { logActivity } from "@/lib/logActivity"
-import { requireDirecteurCompta } from "@/lib/compta/auth"
+import { requireComptaPermission } from "@/lib/compta/auth"
 import { comptaError, comptaOk } from "@/lib/compta/errors"
 import { safeParse, societeParametresSchema } from "@/lib/compta/validators"
 import { getSocieteParametres } from "@/lib/compta/parametres/getParametresSociete"
@@ -18,7 +18,7 @@ export const runtime = "nodejs"
 
 // ─── GET ─────────────────────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
-  const auth = await requireDirecteurCompta(req)
+  const auth = await requireComptaPermission(req, "view_comptabilite")
   if (!auth.ok) return auth.response
 
   try {
@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
 
 // ─── PUT (upsert) ────────────────────────────────────────────────────────────
 export async function PUT(req: NextRequest) {
-  const auth = await requireDirecteurCompta(req)
+  const auth = await requireComptaPermission(req, "manage_societe")
   if (!auth.ok) return auth.response
 
   let body: unknown = {}

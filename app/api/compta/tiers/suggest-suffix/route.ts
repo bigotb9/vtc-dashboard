@@ -16,7 +16,7 @@
  */
 
 import type { NextRequest } from "next/server"
-import { requireDirecteurCompta } from "@/lib/compta/auth"
+import { requireComptaPermission } from "@/lib/compta/auth"
 import { comptaError, comptaOk } from "@/lib/compta/errors"
 import { suggestSuffixWithAvailability } from "@/lib/compta/tiers/generateSuffix"
 import type { TiersType } from "@/types/compta-ui"
@@ -27,7 +27,7 @@ export const runtime = "nodejs"
 const TYPES_VALID: ReadonlyArray<TiersType> = ["client", "fournisseur", "salarie", "autre"]
 
 export async function GET(req: NextRequest) {
-  const auth = await requireDirecteurCompta(req)
+  const auth = await requireComptaPermission(req, "view_comptabilite")
   if (!auth.ok) return auth.response
 
   const url  = new URL(req.url)

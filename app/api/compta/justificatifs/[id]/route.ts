@@ -10,7 +10,7 @@
 
 import type { NextRequest } from "next/server"
 import { logActivity } from "@/lib/logActivity"
-import { requireDirecteurCompta } from "@/lib/compta/auth"
+import { requireComptaPermission } from "@/lib/compta/auth"
 import { comptaError, comptaOk } from "@/lib/compta/errors"
 import { deleteJustificatif } from "@/lib/compta/justificatifs/deleteJustificatif"
 
@@ -20,7 +20,7 @@ export const runtime = "nodejs"
 type RouteCtx = { params: Promise<{ id: string }> }
 
 export async function DELETE(req: NextRequest, ctx: RouteCtx) {
-  const auth = await requireDirecteurCompta(req)
+  const auth = await requireComptaPermission(req, "manage_comptabilite")
   if (!auth.ok) return auth.response
   const { id } = await ctx.params
 

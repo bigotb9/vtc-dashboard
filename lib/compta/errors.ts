@@ -13,7 +13,7 @@ import { NextResponse } from "next/server"
 export const COMPTA_ERRORS = {
   // ─── Auth ──────────────────────────────────────────────────────────────────
   UNAUTHORIZED:           { code: "UNAUTHORIZED",           status: 401, message: "Non authentifié" },
-  FORBIDDEN:              { code: "FORBIDDEN",              status: 403, message: "Réservé au directeur" },
+  FORBIDDEN:              { code: "FORBIDDEN",              status: 403, message: "Permission refusée" },
 
   // ─── Validation ────────────────────────────────────────────────────────────
   INVALID_PAYLOAD:        { code: "INVALID_PAYLOAD",        status: 400, message: "Données invalides" },

@@ -10,7 +10,7 @@
 
 import type { NextRequest } from "next/server"
 import { logActivity } from "@/lib/logActivity"
-import { requireDirecteurCompta } from "@/lib/compta/auth"
+import { requireComptaPermission } from "@/lib/compta/auth"
 import { comptaError, comptaOk } from "@/lib/compta/errors"
 import { safeParse, tiersUpdateSchema } from "@/lib/compta/validators"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
@@ -24,7 +24,7 @@ type RouteCtx = { params: Promise<{ id: string }> }
 // ─── GET : détail enrichi ────────────────────────────────────────────────────
 
 export async function GET(req: NextRequest, ctx: RouteCtx) {
-  const auth = await requireDirecteurCompta(req)
+  const auth = await requireComptaPermission(req, "view_comptabilite")
   if (!auth.ok) return auth.response
 
   const { id } = await ctx.params
@@ -103,7 +103,7 @@ export async function GET(req: NextRequest, ctx: RouteCtx) {
 // ─── PATCH : modification ────────────────────────────────────────────────────
 
 export async function PATCH(req: NextRequest, ctx: RouteCtx) {
-  const auth = await requireDirecteurCompta(req)
+  const auth = await requireComptaPermission(req, "manage_comptabilite")
   if (!auth.ok) return auth.response
 
   const { id } = await ctx.params

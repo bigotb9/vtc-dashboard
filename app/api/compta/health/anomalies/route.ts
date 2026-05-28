@@ -12,7 +12,7 @@
  */
 
 import type { NextRequest } from "next/server"
-import { requireDirecteurCompta } from "@/lib/compta/auth"
+import { requireComptaPermission } from "@/lib/compta/auth"
 import { comptaError, comptaOk } from "@/lib/compta/errors"
 import { getAllAnomaliesForSection } from "@/lib/compta/healthDetailed"
 
@@ -24,7 +24,7 @@ const ALLOWED = new Set([
 ])
 
 export async function GET(req: NextRequest) {
-  const auth = await requireDirecteurCompta(req)
+  const auth = await requireComptaPermission(req, "view_comptabilite")
   if (!auth.ok) return auth.response
 
   const url     = new URL(req.url)

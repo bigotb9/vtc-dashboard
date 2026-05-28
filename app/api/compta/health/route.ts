@@ -23,7 +23,7 @@
 
 import type { NextRequest } from "next/server"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
-import { requireDirecteurCompta } from "@/lib/compta/auth"
+import { requireComptaPermission } from "@/lib/compta/auth"
 import { comptaError, comptaOk } from "@/lib/compta/errors"
 import { buildHealthDetailed } from "@/lib/compta/healthDetailed"
 
@@ -365,7 +365,7 @@ async function getStats() {
 // ─── Route GET ───────────────────────────────────────────────────────────────
 
 export async function GET(req: NextRequest) {
-  const auth = await requireDirecteurCompta(req)
+  const auth = await requireComptaPermission(req, "view_comptabilite")
   if (!auth.ok) return auth.response
 
   // ─── Branche ?detailed=true : payload structuré pour l'Écran 8 ────────────

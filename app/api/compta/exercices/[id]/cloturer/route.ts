@@ -11,7 +11,7 @@
 
 import type { NextRequest } from "next/server"
 import { logActivity } from "@/lib/logActivity"
-import { requireDirecteurCompta } from "@/lib/compta/auth"
+import { requireComptaPermission } from "@/lib/compta/auth"
 import { comptaError, comptaOk } from "@/lib/compta/errors"
 import { cloturerExercice } from "@/lib/compta/exercices/cloturerExercice"
 
@@ -22,7 +22,7 @@ export const maxDuration = 25
 type RouteCtx = { params: Promise<{ id: string }> }
 
 export async function POST(req: NextRequest, ctx: RouteCtx) {
-  const auth = await requireDirecteurCompta(req)
+  const auth = await requireComptaPermission(req, "manage_exercices")
   if (!auth.ok) return auth.response
   const { id } = await ctx.params
 

@@ -10,7 +10,7 @@
 
 import type { NextRequest } from "next/server"
 import { logActivity } from "@/lib/logActivity"
-import { requireDirecteurCompta } from "@/lib/compta/auth"
+import { requireComptaPermission } from "@/lib/compta/auth"
 import { comptaError, comptaOk } from "@/lib/compta/errors"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
 
@@ -28,7 +28,7 @@ const MIME_EXT: Record<string, string> = {
 
 // ─── POST upload ─────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
-  const auth = await requireDirecteurCompta(req)
+  const auth = await requireComptaPermission(req, "manage_societe")
   if (!auth.ok) return auth.response
 
   let formData: FormData
@@ -106,7 +106,7 @@ export async function POST(req: NextRequest) {
 
 // ─── DELETE logo ─────────────────────────────────────────────────────────────
 export async function DELETE(req: NextRequest) {
-  const auth = await requireDirecteurCompta(req)
+  const auth = await requireComptaPermission(req, "manage_societe")
   if (!auth.ok) return auth.response
 
   const { data: existing } = await supabaseAdmin

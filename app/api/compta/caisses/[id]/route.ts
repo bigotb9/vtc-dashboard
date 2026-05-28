@@ -16,7 +16,7 @@
 import type { NextRequest } from "next/server"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import { logActivity } from "@/lib/logActivity"
-import { requireDirecteurCompta } from "@/lib/compta/auth"
+import { requireComptaPermission } from "@/lib/compta/auth"
 import { comptaError, comptaOk } from "@/lib/compta/errors"
 import { caisseUpdateSchema, safeParse } from "@/lib/compta/validators"
 import { buildCaisseCompteDetail } from "@/lib/compta/detailHelpers"
@@ -30,7 +30,7 @@ type RouteCtx = { params: Promise<{ id: string }> }
 // Renvoie : meta + solde courant + KPIs 12 mois + evolution_solde_12_mois +
 // 5 dernières opérations.
 export async function GET(req: NextRequest, ctx: RouteCtx) {
-  const auth = await requireDirecteurCompta(req)
+  const auth = await requireComptaPermission(req, "view_comptabilite")
   if (!auth.ok) return auth.response
 
   const { id } = await ctx.params
@@ -45,7 +45,7 @@ export async function GET(req: NextRequest, ctx: RouteCtx) {
 
 // ─── PATCH ────────────────────────────────────────────────────────────────────
 export async function PATCH(req: NextRequest, ctx: RouteCtx) {
-  const auth = await requireDirecteurCompta(req)
+  const auth = await requireComptaPermission(req, "manage_comptabilite")
   if (!auth.ok) return auth.response
 
   const { id } = await ctx.params
@@ -150,7 +150,7 @@ export async function PATCH(req: NextRequest, ctx: RouteCtx) {
 
 // ─── DELETE ───────────────────────────────────────────────────────────────────
 export async function DELETE(req: NextRequest, ctx: RouteCtx) {
-  const auth = await requireDirecteurCompta(req)
+  const auth = await requireComptaPermission(req, "manage_comptabilite")
   if (!auth.ok) return auth.response
 
   const { id } = await ctx.params

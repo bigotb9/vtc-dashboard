@@ -15,7 +15,7 @@
 import type { NextRequest } from "next/server"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import { logActivity } from "@/lib/logActivity"
-import { requireDirecteurCompta } from "@/lib/compta/auth"
+import { requireComptaPermission } from "@/lib/compta/auth"
 import { comptaError, comptaOk } from "@/lib/compta/errors"
 import { parametresUpdateSchema, safeParse } from "@/lib/compta/validators"
 
@@ -28,7 +28,7 @@ export const dynamic = "force-dynamic"
 //   - infos société (raison sociale, RCCM, etc.)
 //   - stats globales (nb_operations, nb_ecritures, nb_lignes)
 export async function GET(req: NextRequest) {
-  const auth = await requireDirecteurCompta(req)
+  const auth = await requireComptaPermission(req, "view_comptabilite")
   if (!auth.ok) return auth.response
 
   const { data: p, error } = await supabaseAdmin
@@ -110,7 +110,7 @@ export async function GET(req: NextRequest) {
 
 // ─── PATCH ────────────────────────────────────────────────────────────────────
 export async function PATCH(req: NextRequest) {
-  const auth = await requireDirecteurCompta(req)
+  const auth = await requireComptaPermission(req, "manage_comptabilite")
   if (!auth.ok) return auth.response
 
   let payload: unknown

@@ -19,7 +19,7 @@ import type { NextRequest } from "next/server"
 import { z } from "zod"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import { logActivity } from "@/lib/logActivity"
-import { requireDirecteurCompta } from "@/lib/compta/auth"
+import { requireComptaPermission } from "@/lib/compta/auth"
 import { comptaError, comptaOk } from "@/lib/compta/errors"
 import { getModeActif, genererEcritureExtourne, EcritureError } from "@/lib/compta/ecritures"
 import { getExerciceForDate } from "@/lib/compta/soldes"
@@ -34,7 +34,7 @@ const annulerSchema = z.object({
 })
 
 export async function POST(req: NextRequest, ctx: RouteCtx) {
-  const auth = await requireDirecteurCompta(req)
+  const auth = await requireComptaPermission(req, "manage_comptabilite")
   if (!auth.ok) return auth.response
 
   const { id } = await ctx.params

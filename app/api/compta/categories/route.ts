@@ -14,7 +14,7 @@
 import type { NextRequest } from "next/server"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import { logActivity } from "@/lib/logActivity"
-import { requireDirecteurCompta } from "@/lib/compta/auth"
+import { requireComptaPermission } from "@/lib/compta/auth"
 import { comptaError, comptaOk, comptaOkList } from "@/lib/compta/errors"
 import { categorieSchema, safeParse } from "@/lib/compta/validators"
 
@@ -81,7 +81,7 @@ export { checkMappingCoherence }   // exporté pour la route [id]/route.ts
 
 // ─── GET ──────────────────────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
-  const auth = await requireDirecteurCompta(req)
+  const auth = await requireComptaPermission(req, "view_comptabilite")
   if (!auth.ok) return auth.response
 
   const url           = new URL(req.url)
@@ -171,7 +171,7 @@ export async function GET(req: NextRequest) {
 
 // ─── POST ─────────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
-  const auth = await requireDirecteurCompta(req)
+  const auth = await requireComptaPermission(req, "manage_comptabilite")
   if (!auth.ok) return auth.response
 
   let payload: unknown

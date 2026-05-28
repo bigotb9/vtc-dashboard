@@ -9,7 +9,7 @@
 
 import type { NextRequest } from "next/server"
 import { NextResponse } from "next/server"
-import { requireDirecteurCompta } from "@/lib/compta/auth"
+import { requireComptaPermission } from "@/lib/compta/auth"
 import { comptaError } from "@/lib/compta/errors"
 import { wrapHtml } from "@/lib/pdf/generatePdf"
 import { pdfStyles } from "@/lib/pdf/pdfStyles"
@@ -44,7 +44,7 @@ interface PreviewBody {
 }
 
 export async function POST(req: NextRequest, ctx: RouteCtx) {
-  const auth = await requireDirecteurCompta(req)
+  const auth = await requireComptaPermission(req, "manage_comptabilite")
   if (!auth.ok) return auth.response
 
   const { type } = await ctx.params

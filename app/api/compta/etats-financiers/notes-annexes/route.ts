@@ -5,7 +5,7 @@
  */
 
 import type { NextRequest } from "next/server"
-import { requireDirecteurCompta } from "@/lib/compta/auth"
+import { requireComptaPermission } from "@/lib/compta/auth"
 import { comptaError, comptaOk } from "@/lib/compta/errors"
 import { calculerNotesAnnexes } from "@/lib/compta/etats-financiers/calculerNotesAnnexes"
 import { ajusterResultatSiOuvert } from "@/lib/compta/etats-financiers/ajusterResultatExercice"
@@ -15,7 +15,7 @@ export const runtime = "nodejs"
 export const maxDuration = 20
 
 export async function GET(req: NextRequest) {
-  const auth = await requireDirecteurCompta(req)
+  const auth = await requireComptaPermission(req, "view_comptabilite")
   if (!auth.ok) return auth.response
 
   const url = new URL(req.url)

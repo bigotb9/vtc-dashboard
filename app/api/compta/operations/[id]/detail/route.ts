@@ -17,7 +17,7 @@
 
 import type { NextRequest } from "next/server"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
-import { requireDirecteurCompta } from "@/lib/compta/auth"
+import { requireComptaPermission } from "@/lib/compta/auth"
 import { comptaError, comptaOk } from "@/lib/compta/errors"
 
 export const dynamic = "force-dynamic"
@@ -58,7 +58,7 @@ async function resolveUserName(userId: string | null): Promise<string | null> {
 // ─── Route ───────────────────────────────────────────────────────────────────
 
 export async function GET(req: NextRequest, ctx: RouteCtx) {
-  const auth = await requireDirecteurCompta(req)
+  const auth = await requireComptaPermission(req, "view_comptabilite")
   if (!auth.ok) return auth.response
 
   const { id } = await ctx.params

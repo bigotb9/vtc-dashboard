@@ -15,7 +15,7 @@
 import type { NextRequest } from "next/server"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import { logActivity } from "@/lib/logActivity"
-import { requireDirecteurCompta } from "@/lib/compta/auth"
+import { requireComptaPermission } from "@/lib/compta/auth"
 import { comptaError, comptaOk } from "@/lib/compta/errors"
 import { operationUpdateSchema, safeParse } from "@/lib/compta/validators"
 import { getExerciceForDate } from "@/lib/compta/soldes"
@@ -29,7 +29,7 @@ const SORTIE_OK = new Set(["depense", "reversement", "avance", "investissement",
 
 // ─── GET (détail) ─────────────────────────────────────────────────────────────
 export async function GET(req: NextRequest, ctx: RouteCtx) {
-  const auth = await requireDirecteurCompta(req)
+  const auth = await requireComptaPermission(req, "view_comptabilite")
   if (!auth.ok) return auth.response
 
   const { id } = await ctx.params
@@ -64,7 +64,7 @@ export async function GET(req: NextRequest, ctx: RouteCtx) {
 
 // ─── PATCH ────────────────────────────────────────────────────────────────────
 export async function PATCH(req: NextRequest, ctx: RouteCtx) {
-  const auth = await requireDirecteurCompta(req)
+  const auth = await requireComptaPermission(req, "manage_comptabilite")
   if (!auth.ok) return auth.response
 
   const { id } = await ctx.params
@@ -235,7 +235,7 @@ export async function PATCH(req: NextRequest, ctx: RouteCtx) {
 
 // ─── DELETE ───────────────────────────────────────────────────────────────────
 export async function DELETE(req: NextRequest, ctx: RouteCtx) {
-  const auth = await requireDirecteurCompta(req)
+  const auth = await requireComptaPermission(req, "manage_comptabilite")
   if (!auth.ok) return auth.response
 
   const { id } = await ctx.params

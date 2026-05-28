@@ -17,7 +17,7 @@
 import type { NextRequest } from "next/server"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import { logActivity } from "@/lib/logActivity"
-import { requireDirecteurCompta } from "@/lib/compta/auth"
+import { requireComptaPermission } from "@/lib/compta/auth"
 import { comptaError, comptaOk } from "@/lib/compta/errors"
 import { onboardingCompleteSchema, safeParse } from "@/lib/compta/validators"
 
@@ -25,7 +25,7 @@ export const dynamic     = "force-dynamic"
 export const maxDuration = 30
 
 export async function POST(req: NextRequest) {
-  const auth = await requireDirecteurCompta(req)
+  const auth = await requireComptaPermission(req, "manage_comptabilite")
   if (!auth.ok) return auth.response
 
   // 1. Body

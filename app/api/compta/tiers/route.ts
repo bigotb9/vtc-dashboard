@@ -21,7 +21,7 @@
 
 import type { NextRequest } from "next/server"
 import { logActivity } from "@/lib/logActivity"
-import { requireDirecteurCompta } from "@/lib/compta/auth"
+import { requireComptaPermission } from "@/lib/compta/auth"
 import { comptaError, comptaOk } from "@/lib/compta/errors"
 import { safeParse, tiersSchema } from "@/lib/compta/validators"
 import { createTiersRpc } from "@/lib/compta/tiers/createTiers"
@@ -34,7 +34,7 @@ export const runtime = "nodejs"
 // ─── POST : créer un tiers ────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
-  const auth = await requireDirecteurCompta(req)
+  const auth = await requireComptaPermission(req, "manage_comptabilite")
   if (!auth.ok) return auth.response
 
   let body: unknown = {}
@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
 // ─── GET : liste paginée + KPIs ──────────────────────────────────────────────
 
 export async function GET(req: NextRequest) {
-  const auth = await requireDirecteurCompta(req)
+  const auth = await requireComptaPermission(req, "view_comptabilite")
   if (!auth.ok) return auth.response
 
   const url      = new URL(req.url)

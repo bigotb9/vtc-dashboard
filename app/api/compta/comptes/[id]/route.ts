@@ -15,7 +15,7 @@
 import type { NextRequest } from "next/server"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import { logActivity } from "@/lib/logActivity"
-import { requireDirecteurCompta } from "@/lib/compta/auth"
+import { requireComptaPermission } from "@/lib/compta/auth"
 import { comptaError, comptaOk } from "@/lib/compta/errors"
 import { compteUpdateSchema, safeParse } from "@/lib/compta/validators"
 import { buildCaisseCompteDetail } from "@/lib/compta/detailHelpers"
@@ -27,7 +27,7 @@ type RouteCtx = { params: Promise<{ id: string }> }
 // ─── GET ──────────────────────────────────────────────────────────────────────
 // Détail enrichi d'un compte bancaire (Écran 5 Phase 3).
 export async function GET(req: NextRequest, ctx: RouteCtx) {
-  const auth = await requireDirecteurCompta(req)
+  const auth = await requireComptaPermission(req, "view_comptabilite")
   if (!auth.ok) return auth.response
 
   const { id } = await ctx.params
@@ -42,7 +42,7 @@ export async function GET(req: NextRequest, ctx: RouteCtx) {
 
 // ─── PATCH ────────────────────────────────────────────────────────────────────
 export async function PATCH(req: NextRequest, ctx: RouteCtx) {
-  const auth = await requireDirecteurCompta(req)
+  const auth = await requireComptaPermission(req, "manage_comptabilite")
   if (!auth.ok) return auth.response
 
   const { id } = await ctx.params
@@ -132,7 +132,7 @@ export async function PATCH(req: NextRequest, ctx: RouteCtx) {
 
 // ─── DELETE ───────────────────────────────────────────────────────────────────
 export async function DELETE(req: NextRequest, ctx: RouteCtx) {
-  const auth = await requireDirecteurCompta(req)
+  const auth = await requireComptaPermission(req, "manage_comptabilite")
   if (!auth.ok) return auth.response
 
   const { id } = await ctx.params

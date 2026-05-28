@@ -19,7 +19,7 @@
 
 import type { NextRequest } from "next/server"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
-import { requireDirecteurCompta } from "@/lib/compta/auth"
+import { requireComptaPermission } from "@/lib/compta/auth"
 import { comptaError, comptaOk } from "@/lib/compta/errors"
 
 export const dynamic     = "force-dynamic"
@@ -147,7 +147,7 @@ function pct(current: number, prev: number): number | null {
 
 // ─── Route GET ───────────────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
-  const auth = await requireDirecteurCompta(req)
+  const auth = await requireComptaPermission(req, "view_comptabilite")
   if (!auth.ok) return auth.response
 
   const url = new URL(req.url)

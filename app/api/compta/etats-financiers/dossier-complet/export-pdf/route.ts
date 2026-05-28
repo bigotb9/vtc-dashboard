@@ -5,7 +5,7 @@
 
 import type { NextRequest } from "next/server"
 import { NextResponse } from "next/server"
-import { requireDirecteurCompta } from "@/lib/compta/auth"
+import { requireComptaPermission } from "@/lib/compta/auth"
 import { comptaError } from "@/lib/compta/errors"
 import { generatePdfFromHtml, wrapHtml } from "@/lib/pdf/generatePdf"
 import { pdfStyles } from "@/lib/pdf/pdfStyles"
@@ -27,7 +27,7 @@ export const maxDuration = 60   // ⚠ 60s — 4 calculs + 1 grosse passe Puppet
 interface Body { exercice_id?: string }
 
 export async function POST(req: NextRequest) {
-  const auth = await requireDirecteurCompta(req)
+  const auth = await requireComptaPermission(req, "manage_comptabilite")
   if (!auth.ok) return auth.response
 
   let body: Body = {}

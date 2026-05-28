@@ -7,7 +7,7 @@
 
 import type { NextRequest } from "next/server"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
-import { requireDirecteurCompta } from "@/lib/compta/auth"
+import { requireComptaPermission } from "@/lib/compta/auth"
 import { comptaError, comptaOk } from "@/lib/compta/errors"
 import { validatePeriod } from "@/lib/compta/exports/common"
 
@@ -15,7 +15,7 @@ export const dynamic     = "force-dynamic"
 export const maxDuration = 10
 
 export async function GET(req: NextRequest) {
-  const auth = await requireDirecteurCompta(req)
+  const auth = await requireComptaPermission(req, "view_comptabilite")
   if (!auth.ok) return auth.response
 
   const url      = new URL(req.url)

@@ -23,7 +23,7 @@
 
 import type { NextRequest } from "next/server"
 import { logActivity } from "@/lib/logActivity"
-import { requireDirecteurCompta } from "@/lib/compta/auth"
+import { requireComptaPermission } from "@/lib/compta/auth"
 import { comptaError, comptaOk } from "@/lib/compta/errors"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import { genererEcritureFromOperation, EcritureError } from "@/lib/compta/ecritures"
@@ -47,7 +47,7 @@ interface Body {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await requireDirecteurCompta(req)
+  const auth = await requireComptaPermission(req, "manage_comptabilite")
   if (!auth.ok) return auth.response
 
   let body: Body = {}
