@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from "next/server"
 import Anthropic from "@anthropic-ai/sdk"
-import { createClient } from "@supabase/supabase-js"
+import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import { calculLoyerNet } from "@/lib/clients/calculLoyerNet"
 
 export const maxDuration = 60 // Vercel max pour plan Pro (évite les timeouts Claude Opus)
 
-const sb = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+// Client service_role (bypass RLS) — l'agent BoyaBot doit lire TOUTES les tables
+// métier (ex. versements_clients protégée par RLS). L'auth de la route reste
+// assurée exclusivement par le shared-secret Bearer AGENT_API_TOKEN ci-dessous ;
+// ce client n'est jamais utilisé pour valider une identité utilisateur.
+const sb = supabaseAdmin
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
