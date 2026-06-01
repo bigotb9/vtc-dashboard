@@ -627,10 +627,21 @@ export async function repriseDepensesVehicules(
   // pour la meme realite metier.
   // L'API /api/depenses/create refuse deja ce type (fix L4 v2), mais la
   // reprise scanne toute la table - il faut filtrer ici aussi.
+  //
+  // FIX L5 (01/06/2026) : Exclure AUSSI type_depense='Manuel'. Ces lignes sont
+  // par construction des MIROIRS descendus d'une operation source='manuel' via
+  // le trigger sync_operation_to_legacy (lien id_depense = operation.id). Elles
+  // ont DEJA leur operation. Les retraiter creerait une op source='depense_vehicule'
+  // en DOUBLON : le dedup par source_ref ne la voit pas (l'op existante a
+  // source='manuel', un source different), donc rien ne l'empeche.
   const rowsFiltered = rows.filter(r => {
     const t = String(r.type_depense ?? "").toLowerCase()
     if (t.includes("reversement")) {
       warnings.push(`Ligne depenses_vehicules ${r.id_depense} type "Reversement client" skippee (doublon avec versement_client)`)
+      return false
+    }
+    if (t === "manuel") {
+      warnings.push(`Ligne depenses_vehicules ${r.id_depense} type "Manuel" skippee (miroir d'une op source='manuel' deja existante)`)
       return false
     }
     return true
