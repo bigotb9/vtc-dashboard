@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import Anthropic from "@anthropic-ai/sdk"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import { calculLoyerNet } from "@/lib/clients/calculLoyerNet"
+import { getMargeConsolidee } from "@/lib/finance/margeConsolidee"
 
 export const maxDuration = 60 // Vercel max pour plan Pro (évite les timeouts Claude Opus)
 
@@ -60,7 +61,7 @@ BOYAH GROUP (flotte principale) :
 - "recette" / "Wave" / "CA Wave" = revenu encaissé via l'appli Wave (paiement client final)
 - "course" = trajet effectué par un chauffeur Boyah Group
 - "dépense" / "charge" = frais opérationnels Boyah Group (carburant, entretien, assurance, etc.)
-- "profit" / "marge" = CA Wave − dépenses totales
+- "profit" / "marge" / "rentabilité" = marge réelle consolidée MENSUELLE (voir section 💰 MARGE & RENTABILITÉ ci-dessous). Ne JAMAIS la recalculer toi-même.
 - "sous gestion" / "client" = véhicule appartenant à un propriétaire privé, confié à Boyah Group pour gestion
   → IMPORTANT : C'EST BOYAH QUI VERSE DE L'ARGENT AU CLIENT (pas l'inverse !). Le client est le
     propriétaire du véhicule, il ne paie RIEN. Boyah exploite son véhicule et lui reverse une part.
@@ -74,6 +75,39 @@ BOYAH GROUP (flotte principale) :
   → Fenêtre de paiement : Boyah verse entre le 5 et le 10 du mois SUIVANT l'exploitation
     (ex : exploitation mars → versement au client entre 5 et 10 avril).
     Statuts : deja_verse / a_verser (5-10) / en_retard (après 10) / pas_encore_du (avant 5) / en_cours / futur
+
+═══════════════════════════════════════
+💰 MARGE & RENTABILITÉ — règles strictes
+═══════════════════════════════════════
+La marge réelle est MENSUELLE et consolidée :
+  marge_reelle = marge des véhicules propres (bloc1) + résultat de la gestion clients (bloc2) − charges de structure (bloc4).
+C'est LE chiffre à citer quand on parle de rentabilité ou de marge.
+Ne calcule JAMAIS une marge toi-même : utilise UNIQUEMENT marge_consolidee.marge_reelle fourni dans le contexte.
+
+Les 4 blocs (objet marge_consolidee) :
+- bloc1 (véhicules propres) : recettes − dépenses de la flotte Boyah Group.
+- bloc2 (gestion clients) : recettes des véhicules sous gestion − loyers nets dus aux clients − dépenses absorbées par Boyah. Un résultat négatif = ces véhicules clients ont coûté de l'argent ce mois.
+- bloc4 (charges de structure) : charges sans véhicule (loyer bureau, salaires admin, etc.).
+- bloc3 (Yango) : NON IMPLÉMENTÉ (=0).
+
+GARDE ANTI-CONFUSION (impératif) :
+- marge_reelle = chiffre RÉEL encaissé. total_consolide inclut une ESTIMATION Yango. Cite marge_reelle, PAS total_consolide — sauf si on te demande explicitement le total avec Yango.
+- Le bloc Yango est non implémenté (=0). N'invente JAMAIS de revenu ni de commission Yango. Ne gonfle jamais la marge avec une estimation Yango.
+
+COMMISSION YANGO (Boyah Transport) — opérationnel ≠ marge :
+- La commission Yango (Boyah Transport, 2,5% du CA prestataires) est une info OPÉRATIONNELLE réelle que tu peux donner quand on te le demande (depuis les données transport). MAIS elle n'est PAS ENCORE intégrée dans la marge consolidée (bloc3 = non implémenté). Donc : quand tu donnes la commission Yango, précise toujours que ce revenu n'est pas encore inclus dans la marge réelle / le calcul de rentabilité consolidé. Ne jamais additionner toi-même la commission Yango à marge_reelle.
+
+AVERTISSEMENTS (impératif) :
+- Si marge_consolidee.avertissements contient des éléments, tu DOIS les mentionner quand tu cites la marge.
+- En particulier, si les charges de structure ne sont pas saisies (bloc4 quasi vide), préviens explicitement que la marge est SURÉVALUÉE et ne doit pas être prise pour argent comptant. Ne présente JAMAIS une marge surévaluée comme certaine.
+
+PÉRIODE :
+- La marge est par MOIS CALENDAIRE (champ 'mois' dans marge_consolidee). Tu ne peux PAS calculer de marge "sur 30 jours glissants" ni "aujourd'hui" — la rentabilité se raisonne par mois.
+- marge_consolidee contient DEUX mois : le mois courant (champs racine : marge_reelle, bloc1_resume…) ET le mois précédent (sous-objet marge_mois_precedent : même structure, dernier mois complet).
+- Si le mois courant est vide ou à peine commencé (début de mois, marge_reelle = 0), ne te contente pas de dire "0 / pas de données" : cite la marge du mois précédent (marge_mois_precedent) comme référence la plus récente fiable — formule du type "marge de mai, dernier mois complet : X F". Précise toujours de quel mois tu parles.
+
+SOURCES (ne pas réconcilier) :
+- Le CA encaissé (ca_mois_actuel, recettes Wave) et bloc1.recettes proviennent de sources différentes et peuvent légèrement différer. N'essaie PAS de les réconcilier ni de recalculer : cite marge_reelle pour la marge, et le CA pour l'encaissement.
 
 BOYAH TRANSPORT (partenariat Yango) :
 - "prestataire" = chauffeur tiers inscrit sur la plateforme Yango VIA Boyah Transport (≠ chauffeur Boyah Group)
@@ -202,41 +236,109 @@ async function fetchContext(intent: IntentType) {
     .join("\n") || "Pas encore de mémoire"
 
   // ── Données financières Boyah Group
+  //   RENTABILITÉ : la marge vient EXCLUSIVEMENT du helper getMargeConsolidee
+  //   (source de vérité unique, par mois calendaire). fetchFinancial ne fournit
+  //   plus que des chiffres de FLUX encaissé (aujourd'hui, mois courant/préc,
+  //   évolution CA). L'ancien profit_net / marge_pct / depenses_totales
+  //   (CA ~60 lignes − dépenses all-time) a été SUPPRIMÉ : temporellement
+  //   incohérent (mélangeait une fenêtre courte de CA avec des dépenses cumulées
+  //   depuis toujours) et ignorait la consolidation clients.
   const fetchFinancial = async () => {
-    const [caJour, caMois, recettes, depenses, caJourPrevMois] = await Promise.all([
-      sb.from("vue_ca_journalier").select("*").order("date", { ascending: false }).limit(60),
+    const [caMois, recettes, depenses, margeCur, margePrec] = await Promise.all([
       sb.from("vue_ca_mensuel").select("*").order("annee", { ascending: false }).order("mois", { ascending: false }).limit(13),
       sb.from("recettes_wave").select("*").order("Horodatage", { ascending: false }).limit(200),
       sb.from("vue_depenses_categories").select("*"),
-      sb.from("vue_ca_journalier").select("*").gte("date", prevMonth + "-01").lt("date", monthPrefix + "-01"),
+      getMargeConsolidee(sb, monthPrefix),
+      getMargeConsolidee(sb, prevMonth),
     ])
     const recettesData = recettes.data || []
-    const caJourData   = caJour.data || []
     const caMoisData   = caMois.data || []
     const depData      = depenses.data || []
 
     const caAujTotal   = recettesData.filter(r => r.Horodatage?.startsWith(today)).reduce((s, r) => s + Number(r["Montant net"] || 0), 0)
-    const ca30j        = caJourData.reduce((s, r) => s + Number(r.chiffre_affaire || 0), 0)
     const caMoisActuel = Number(caMoisData[0]?.chiffre_affaire || 0)
     const caMoisPrec   = Number(caMoisData[1]?.chiffre_affaire || 0)
-    const depTotal     = depData.reduce((s, r) => s + Number(r.total_depenses || 0), 0)
-    const prevMoisCA   = (caJourPrevMois.data || []).reduce((s, r) => s + Number(r.chiffre_affaire || 0), 0)
+
+    // ── Marge consolidée (source de vérité unique) — miroir /api/cockpit/finances
+    const variationPct = margePrec.marge_reelle > 0
+      ? Math.round(((margeCur.marge_reelle - margePrec.marge_reelle) / margePrec.marge_reelle) * 100)
+      : null
+
+    const marge_consolidee = {
+      mois:         margeCur.mois,
+      marge_reelle: Math.round(margeCur.marge_reelle),
+      bloc1_resume: {
+        libelle:      "Véhicules propres",
+        recettes:     Math.round(margeCur.bloc1_vehicules_propres.recettes),
+        depenses:     Math.round(margeCur.bloc1_vehicules_propres.depenses),
+        marge:        Math.round(margeCur.bloc1_vehicules_propres.marge),
+        nb_vehicules: margeCur.bloc1_vehicules_propres.nb_vehicules,
+      },
+      bloc2_resume: {
+        libelle:              "Gestion clients (véhicules sous gestion)",
+        recettes:             Math.round(margeCur.bloc2_gestion_clients.recettes),
+        loyers_nets_a_verser: Math.round(margeCur.bloc2_gestion_clients.loyers_nets_a_verser),
+        depenses_absorbees:   Math.round(margeCur.bloc2_gestion_clients.depenses_absorbees),
+        resultat:             Math.round(margeCur.bloc2_gestion_clients.resultat),
+        nb_vehicules:         margeCur.bloc2_gestion_clients.nb_vehicules,
+      },
+      bloc4_resume: {
+        libelle:       "Charges de structure",
+        total:         Math.round(margeCur.bloc4_charges_structure.total),
+        nb_operations: margeCur.bloc4_charges_structure.nb_operations,
+        quasi_vide:    margeCur.bloc4_charges_structure.quasi_vide,
+      },
+      bloc3_yango: {
+        commission_estimee: Math.round(margeCur.bloc3_yango_estime.commission),
+        non_implemente:     margeCur.bloc3_yango_estime.non_implemente,
+        note:               "Estimation NON encaissée, exclue de marge_reelle. Ne pas inventer de revenu Yango.",
+      },
+      total_consolide:            Math.round(margeCur.total_consolide),
+      variation_pct_vs_mois_prec: variationPct,
+      avertissements:             margeCur.avertissements,
+      // Mois précédent exposé comme référence la plus récente fiable :
+      // utile quand le mois courant est vide (début de mois). Mêmes resume
+      // que le mois courant, sans bloc3_yango (non implémenté de toute façon).
+      marge_mois_precedent: {
+        mois:         margePrec.mois,
+        marge_reelle: Math.round(margePrec.marge_reelle),
+        bloc1_resume: {
+          libelle:      "Véhicules propres",
+          recettes:     Math.round(margePrec.bloc1_vehicules_propres.recettes),
+          depenses:     Math.round(margePrec.bloc1_vehicules_propres.depenses),
+          marge:        Math.round(margePrec.bloc1_vehicules_propres.marge),
+          nb_vehicules: margePrec.bloc1_vehicules_propres.nb_vehicules,
+        },
+        bloc2_resume: {
+          libelle:              "Gestion clients (véhicules sous gestion)",
+          recettes:             Math.round(margePrec.bloc2_gestion_clients.recettes),
+          loyers_nets_a_verser: Math.round(margePrec.bloc2_gestion_clients.loyers_nets_a_verser),
+          depenses_absorbees:   Math.round(margePrec.bloc2_gestion_clients.depenses_absorbees),
+          resultat:             Math.round(margePrec.bloc2_gestion_clients.resultat),
+          nb_vehicules:         margePrec.bloc2_gestion_clients.nb_vehicules,
+        },
+        bloc4_resume: {
+          libelle:       "Charges de structure",
+          total:         Math.round(margePrec.bloc4_charges_structure.total),
+          nb_operations: margePrec.bloc4_charges_structure.nb_operations,
+          quasi_vide:    margePrec.bloc4_charges_structure.quasi_vide,
+        },
+        total_consolide: Math.round(margePrec.total_consolide),
+        avertissements:  margePrec.avertissements,
+      },
+    }
 
     return {
       ca_aujourd_hui_fcfa:  caAujTotal,
-      ca_30_derniers_jours: ca30j,
       ca_mois_actuel:       caMoisActuel,
       ca_mois_precedent:    caMoisPrec,
       evolution_mois_pct:   caMoisPrec > 0 ? (((caMoisActuel - caMoisPrec) / caMoisPrec) * 100).toFixed(1) + "%" : "N/A",
-      depenses_totales:     depTotal,
-      profit_net:           ca30j - depTotal,
-      marge_pct:            ca30j > 0 ? ((ca30j - depTotal) / ca30j * 100).toFixed(1) + "%" : "0%",
       depenses_par_categorie: depData.map(d => ({ categorie: d.categorie, montant: d.total_depenses })),
       evolution_ca_mensuel: caMoisData.slice(0, 6).map(m => ({
         periode: `${m.mois}/${m.annee}`,
         ca_fcfa: m.chiffre_affaire,
       })),
-      ca_mois_precedent_par_jour: prevMoisCA,
+      marge_consolidee,
     }
   }
 
@@ -731,7 +833,11 @@ async function fetchContext(intent: IntentType) {
     }
     case "market_research": {
       const [fin, trp] = await Promise.all([fetchFinancial(), fetchTransport()])
-      return { ...base, context_marche: { ca_boyah_group_30j: fin.ca_30_derniers_jours, marge: fin.marge_pct, commissions_boyah_transport_mois: trp.commission_boyah_ce_mois } }
+      return { ...base, context_marche: {
+        ca_mois_actuel:                   fin.ca_mois_actuel,
+        marge_consolidee:                 fin.marge_consolidee,
+        commissions_boyah_transport_mois: trp.commission_boyah_ce_mois,
+      } }
     }
     default: {
       // daily_report, alerts, rapport complet
@@ -817,7 +923,7 @@ function buildUserContent(intent: IntentType, message: string, context: Record<s
       return `[ANALYSE DIRECTE — commence immédiatement]\n\n🌍 Veille marché VTC Abidjan pour Boyah Group.\n\nAnalyse :\n1. Tendances marché VTC Côte d'Ivoire (Abidjan) — utilise les données web\n2. Mouvements concurrents (Yango, InDriver, Bolt) — positionnement actuel\n3. Opportunités concrètes pour Boyah Group vu nos données actuelles\n4. Menaces et risques\n5. 2 recommandations stratégiques actionnables\n\nDONNÉES ENTREPRISE :\n${ctxStr}${web}`
 
     case "financial_query":
-      return `${message}\n\n📊 DONNÉES FINANCIÈRES BOYAH GROUP :\n${ctxStr}`
+      return `${message}\n\n📊 DONNÉES FINANCIÈRES BOYAH GROUP :\n${ctxStr}\n\n⚠️ MARGE / rentabilité : cite UNIQUEMENT finances_boyah_group.marge_consolidee.marge_reelle (jamais total_consolide sauf demande explicite, jamais de Yango inventé). Si marge_consolidee.avertissements n'est pas vide, mentionne-les — notamment, si les charges de structure ne sont pas saisies, préviens que la marge est SURÉVALUÉE. Le CA (ca_mois_actuel) est l'encaissement, PAS la marge — ne les confonds pas.`
 
     case "driver_query":
       return `${message}\n\n👥 DONNÉES CHAUFFEURS :\n${ctxStr}`
