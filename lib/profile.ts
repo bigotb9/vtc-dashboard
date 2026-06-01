@@ -36,6 +36,9 @@ export type Permission =
   // Système
   | "view_cockpit"     | "view_journal"     | "manage_users"
   | "view_reports"
+  // Finances Cockpit (lecture seule donnees sensibles : marge, arriere,
+  // rentabilite par vehicule) - ajoute 01/06/2026, distincte de view_cockpit
+  | "view_finances_cockpit"
 
 // Récupère le profil de l'utilisateur connecté
 export async function getMyProfile(): Promise<Profile | null> {

@@ -5,8 +5,14 @@
  *   - retard_vehicule (critique)  — versement manquant (rien reçu)
  *   - retard_vehicule (attention) — paiement insuffisant (partiel)
  *   - caisse_negative (attention)
- *   - marge_baisse    (attention) — marge mois courant < marge mois précédent
  *   - top_performer   (positive)  — chauffeur > X% au-dessus de sa moyenne 30j
+ *
+ * Note 01/06/2026 : l'alerte "marge_baisse" a été RETIRÉE d'ici. La marge
+ * est une donnée financière sensible : elle est désormais calculée
+ * proprement (via le helper getMargeConsolidee, sur marge_reelle) dans
+ * /api/cockpit/finances, gardée par la permission view_finances_cockpit.
+ * L'ancien calcul ad-hoc ici (Σ entrées − Σ sorties sans filtrer la
+ * catégorie) sur-comptait les dépenses.
  *
  * Notes :
  *   - Plus de détection "vehicule_inactif" basée sur commandes_yango.
@@ -40,7 +46,7 @@ type Alerte = {
   niveau: "critique" | "attention" | "positive"
   titre:  string
   meta:   string
-  type:   "retard_vehicule" | "caisse_negative" | "marge_baisse" | "top_performer"
+  type:   "retard_vehicule" | "caisse_negative" | "top_performer"
   actions: AlerteAction[]
 }
 
@@ -143,64 +149,10 @@ export async function GET(req: NextRequest) {
     }
 
     // ════════════════════════════════════════════════════════════════════
-    // 3. MARGE MENSUELLE EN BAISSE (attention)
+    // 3. TOP PERFORMER DU JOUR (positive)
     // ════════════════════════════════════════════════════════════════════
-    try {
-      const monthStart = `${today.slice(0, 7)}-01`
-      const prevMonth = (() => {
-        const d = new Date(monthStart + "T00:00:00Z")
-        d.setUTCDate(0)   // dernier jour du mois précédent
-        return d.toISOString().slice(0, 7)
-      })()
-      const prevMonthStart = `${prevMonth}-01`
-
-      const [opsCurrentRes, opsPrevRes] = await Promise.all([
-        supabaseAdmin
-          .from("operations")
-          .select("type, montant")
-          .eq("statut", "valide")
-          .neq("source", "transfert_interne")
-          .gte("date_operation", monthStart)
-          .lte("date_operation", today),
-        supabaseAdmin
-          .from("operations")
-          .select("type, montant")
-          .eq("statut", "valide")
-          .neq("source", "transfert_interne")
-          .gte("date_operation", prevMonthStart)
-          .lt("date_operation", monthStart),
-      ])
-
-      const margeOf = (rows: Array<{ type?: string; montant?: number }>) => {
-        let entrees = 0, sorties = 0
-        for (const r of rows) {
-          const m = Number(r.montant ?? 0)
-          if (r.type === "entree") entrees += m
-          else if (r.type === "sortie") sorties += m
-        }
-        return { entrees, sorties, marge: entrees - sorties }
-      }
-      const cur  = margeOf(opsCurrentRes.data ?? [])
-      const prev = margeOf(opsPrevRes.data ?? [])
-
-      if (prev.marge > 0 && cur.marge < prev.marge) {
-        const ecartPct = Math.round(((cur.marge - prev.marge) / prev.marge) * 100)
-        alertes.push({
-          id:     `marge_baisse:${today.slice(0, 7)}`,
-          niveau: "attention",
-          titre:  `Marge en baisse : ${ecartPct}%`,
-          meta:   `Mois en cours : ${Math.round(cur.marge).toLocaleString("fr-FR")} F · Mois précédent : ${Math.round(prev.marge).toLocaleString("fr-FR")} F`,
-          type:   "marge_baisse",
-          actions: [{ label: "Voir le dashboard compta", type: "voir", href: "/comptabilite" }],
-        })
-      }
-    } catch (e) {
-      console.warn("[cockpit/alertes] marge_baisse swallow:", (e as Error).message)
-    }
-
-    // ════════════════════════════════════════════════════════════════════
-    // 4. TOP PERFORMER DU JOUR (positive)
-    // ════════════════════════════════════════════════════════════════════
+    // (L'ancienne alerte "marge_baisse" vivait ici — déplacée vers
+    //  /api/cockpit/finances, cf. en-tête de fichier.)
     try {
       const todayStart = `${today}T00:00:00Z`
       const todayEnd   = `${today}T23:59:59Z`

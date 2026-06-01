@@ -16,12 +16,14 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Gauge, RefreshCw } from "lucide-react"
 import { authFetch } from "@/lib/authFetch"
+import { useProfile } from "@/hooks/useProfile"
 import CockpitKpis from "@/components/cockpit/CockpitKpis"
 import CockpitAlertes from "@/components/cockpit/CockpitAlertes"
 import CockpitConversations from "@/components/cockpit/CockpitConversations"
 import CockpitFlotte from "@/components/cockpit/CockpitFlotte"
+import CockpitDeficitaires from "@/components/cockpit/CockpitDeficitaires"
 import type {
-  Kpis, Alerte, Conversation, Todo, FlottePayload,
+  Kpis, Alerte, Conversation, Todo, FlottePayload, CockpitFinances,
 } from "@/components/cockpit/types"
 
 const REFRESH_INTERVAL_MS = 60_000
@@ -52,11 +54,17 @@ async function fetchJson<T>(url: string): Promise<{ ok: true; data: T } | { ok: 
 }
 
 export default function CockpitPage() {
+  // Permission finance (lecture seule données sensibles : marge, arriéré,
+  // déficitaires). Le directeur a tout via useProfile().can.
+  const { can } = useProfile()
+  const canFinances = can("view_finances_cockpit")
+
   const [kpis,          setKpis]          = useState<ZoneState<Kpis>>({ data: null, loading: true, error: null })
   const [alertes,       setAlertes]       = useState<ZoneListState<Alerte>>({ data: [], loading: true, error: null })
   const [conversations, setConversations] = useState<ZoneListState<Conversation>>({ data: [], loading: true, error: null })
   const [todos,         setTodos]         = useState<ZoneListState<Todo>>({ data: [], loading: true, error: null })
   const [flotte,        setFlotte]        = useState<ZoneState<FlottePayload>>({ data: null, loading: true, error: null })
+  const [finances,      setFinances]      = useState<ZoneState<CockpitFinances>>({ data: null, loading: true, error: null })
 
   const [refreshing, setRefreshing] = useState(false)
   const [lastFetchAt, setLastFetchAt] = useState<Date | null>(null)
@@ -64,13 +72,17 @@ export default function CockpitPage() {
 
   const fetchAll = useCallback(async (showSpinner = false) => {
     if (showSpinner) setRefreshing(true)
-    // Lance les 5 fetchs en parallèle
-    const [rKpis, rAlertes, rConv, rTodos, rFlotte] = await Promise.all([
+    // Lance les fetchs en parallèle. La route /finances n'est appelée QUE si
+    // l'utilisateur a la permission view_finances_cockpit (données sensibles).
+    const [rKpis, rAlertes, rConv, rTodos, rFlotte, rFin] = await Promise.all([
       fetchJson<Kpis>("/api/cockpit/kpis"),
       fetchJson<Alerte[]>("/api/cockpit/alertes"),
       fetchJson<Conversation[]>("/api/cockpit/conversations"),
       fetchJson<Todo[]>("/api/cockpit/todos"),
       fetchJson<FlottePayload>("/api/cockpit/flotte"),
+      canFinances
+        ? fetchJson<CockpitFinances>("/api/cockpit/finances")
+        : Promise.resolve(null),
     ])
 
     if (!mountedRef.current) return
@@ -91,9 +103,18 @@ export default function CockpitPage() {
       ? { data: rFlotte.data, loading: false, error: null }
       : { data: null,         loading: false, error: rFlotte.error })
 
+    if (rFin == null) {
+      // Pas la permission : on neutralise la zone (rien à afficher, pas d'erreur)
+      setFinances({ data: null, loading: false, error: null })
+    } else {
+      setFinances(rFin.ok
+        ? { data: rFin.data, loading: false, error: null }
+        : { data: null,      loading: false, error: rFin.error })
+    }
+
     setLastFetchAt(new Date())
     if (showSpinner) setRefreshing(false)
-  }, [])
+  }, [canFinances])
 
   const refreshTodos = useCallback(async () => {
     const r = await fetchJson<Todo[]>("/api/cockpit/todos")
@@ -143,12 +164,27 @@ export default function CockpitPage() {
         </button>
       </header>
 
-      {/* ZONE 1 — KPIs */}
+      {/* ZONE 1 — KPIs (+ cards finance si permission) */}
       <CockpitKpis
         data={kpis.data}
         loading={kpis.loading}
         error={kpis.error}
+        canFinances={canFinances}
+        finances={finances.data}
+        financesLoading={finances.loading}
+        financesError={finances.error}
       />
+
+      {/* ZONE 1-bis — Véhicules clients déficitaires (sensible, si permission) */}
+      {canFinances && (
+        <div className="rounded-2xl border border-gray-100 dark:border-[#1E2D45] bg-white dark:bg-[#0D1424] p-5">
+          <CockpitDeficitaires
+            deficitaires={finances.data?.deficitaires ?? []}
+            loading={finances.loading}
+            error={finances.error}
+          />
+        </div>
+      )}
 
       {/* ZONE 2 — Alertes */}
       <div className="rounded-2xl border border-gray-100 dark:border-[#1E2D45] bg-white dark:bg-[#0D1424] p-5">

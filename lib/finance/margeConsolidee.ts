@@ -54,7 +54,7 @@ export type MargeConsolidee = {
 
   bloc2_gestion_clients: {
     recettes: number                 // Σ recettes Wave des véhicules clients
-    loyers_nets_verses: number       // Σ calculLoyerNet
+    loyers_nets_a_verser: number     // Σ calculLoyerNet (le DÛ du mois, pas le versé)
     depenses_absorbees: number       // Σ min(dépenses véhicule, 50000)
     resultat: number                 // recettes - loyers_nets - depenses_absorbees
     nb_vehicules: number
@@ -282,7 +282,7 @@ export async function getMargeConsolidee(
   }
   const bloc2 = {
     recettes: b2Recettes,
-    loyers_nets_verses: b2Loyers,
+    loyers_nets_a_verser: b2Loyers,
     depenses_absorbees: b2Absorbees,
     resultat: b2Resultat,
     nb_vehicules: detailClients.length,

@@ -47,6 +47,7 @@ const ALL_ACTIONS: { key: string; label: string; category: string }[] = [
   { key: "create_driver",        label: "Créer un prestataire Yango",         category: "Boyah Transport" },
   // Système
   { key: "view_cockpit",         label: "Accéder au Cockpit",                 category: "Système" },
+  { key: "view_finances_cockpit", label: "Voir les finances du Cockpit (marge, arriéré, rentabilité par véhicule)", category: "Système" },
   { key: "view_journal",         label: "Voir le journal d'activité",         category: "Système" },
   { key: "manage_users",         label: "Gérer les utilisateurs",             category: "Système" },
 ]
