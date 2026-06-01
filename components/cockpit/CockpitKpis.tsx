@@ -14,13 +14,52 @@
  * Cards FINANCE (visibles uniquement si view_finances_cockpit, source
  * /api/cockpit/finances — données sensibles) :
  *   - marge_du_mois      : marge réelle du mois courant + variation vs préc.
- *   - loyers_a_verser    : loyers nets DUS ce mois + montant déjà versé
- *   - arriere_mois       : reste à verser ce mois (version minimale)
+ *   - loyer_a_verser     : loyer net DÛ du mois PRÉCÉDENT (décalage de paiement
+ *                          M+1, versé entre le 5 et le 10) + badge d'échéance +
+ *                          montant déjà versé / reliquat.
+ *   - arriere_cumule     : Σ reliquats de TOUS les mois de loyer en retard.
  */
 
 import { Coins, Car, AlertTriangle, TrendingUp, Wallet, Briefcase } from "lucide-react"
 import { formatMontant } from "@/lib/format/montant"
-import type { Kpis, CockpitFinances } from "./types"
+import type { Kpis, CockpitFinances, LoyerEtat } from "./types"
+
+// ── 'YYYY-MM' → 'mai 2026' (français) ───────────────────────────────────────
+const MOIS_FR = [
+  "janvier", "février", "mars", "avril", "mai", "juin",
+  "juillet", "août", "septembre", "octobre", "novembre", "décembre",
+]
+function formatMois(ym: string): string {
+  const [y, m] = ym.split("-").map(Number)
+  if (!y || !m || m < 1 || m > 12) return ym
+  return `${MOIS_FR[m - 1]} ${y}`
+}
+
+// ── Badge d'état d'échéance du loyer (décalage M+1) ──────────────────────────
+function etatBadge(etat: LoyerEtat): { text: string; cls: string } {
+  switch (etat) {
+    case "a_verser":
+      return {
+        text: "À verser",
+        cls: "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400",
+      }
+    case "en_retard":
+      return {
+        text: "En retard",
+        cls: "bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400",
+      }
+    case "deja_verse":
+      return {
+        text: "Versé",
+        cls: "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400",
+      }
+    default: // futur | en_cours | a_venir
+      return {
+        text: "À venir",
+        cls: "bg-indigo-50 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400",
+      }
+  }
+}
 
 type Props = {
   data:    Kpis | null
@@ -152,7 +191,19 @@ function FinanceCards({
     : ""
   const margeTone = finances.marge_en_baisse || marge < 0 ? "negative" : margePositive ? "positive" : "neutral"
 
-  const arriere = finances.arriere_mois_courant
+  // ── Loyer à verser (décalage M+1) : concerne le mois PRÉCÉDENT ──
+  const badge = etatBadge(finances.etat)
+  const loyerTone =
+    finances.etat === "en_retard" ? "negative"
+    : finances.etat === "deja_verse" ? "positive"
+    : "neutral"
+  const reliquat = finances.reliquat_mois
+  const loyerSub = finances.etat === "deja_verse"
+    ? `Versé : ${formatMontant(finances.deja_verse)} F`
+    : `Versé ${formatMontant(finances.deja_verse)} F · Reste ${formatMontant(reliquat)} F`
+
+  // ── Arriéré cumulé (tous les mois en retard, 12 mois glissants) ──
+  const arriere = finances.arriere_cumule
   const arriereActif = arriere > 0
 
   return (
@@ -166,21 +217,22 @@ function FinanceCards({
         tone={margeTone}
       />
 
-      {/* Loyers à verser ce mois */}
+      {/* Loyer à verser — mois précédent (décalage de paiement M+1) */}
       <Card
         icon={Wallet}
-        label="LOYERS À VERSER (MOIS)"
-        value={`${formatMontant(finances.loyers_dus_ce_mois)} F`}
-        sub={`Déjà versé : ${formatMontant(finances.verses_ce_mois)} F`}
-        tone="neutral"
+        label={`LOYER À VERSER — ${formatMois(finances.mois_concerne)}`}
+        value={`${formatMontant(finances.loyer_a_verser)} F`}
+        sub={loyerSub}
+        tone={loyerTone}
+        badge={badge}
       />
 
-      {/* Arriéré (mois courant) */}
+      {/* Arriéré cumulé */}
       <Card
         icon={Briefcase}
-        label="ARRIÉRÉ (MOIS)"
+        label="ARRIÉRÉ CUMULÉ"
         value={`${formatMontant(arriere)} F`}
-        sub={arriereActif ? "Reste à verser ce mois" : "À jour sur le mois"}
+        sub={arriereActif ? "Loyers en retard non soldés (12 mois)" : "Aucun arriéré"}
         tone={arriereActif ? "negative" : "positive"}
       />
     </div>
@@ -193,9 +245,10 @@ type CardProps = {
   value:  string
   sub:    string
   tone:   "neutral" | "positive" | "negative"
+  badge?: { text: string; cls: string }
 }
 
-function Card({ icon: Icon, label, value, sub, tone }: CardProps) {
+function Card({ icon: Icon, label, value, sub, tone, badge }: CardProps) {
   const borderClass = tone === "negative"
     ? "border-red-200 dark:border-red-500/30"
     : tone === "positive"
@@ -217,12 +270,17 @@ function Card({ icon: Icon, label, value, sub, tone }: CardProps) {
   return (
     <div className={`rounded-2xl border ${borderClass} bg-white dark:bg-[#0D1424] p-4`}>
       <div className="flex items-center gap-2 mb-2">
-        <div className="w-7 h-7 rounded-lg bg-gray-50 dark:bg-white/[0.04] flex items-center justify-center">
+        <div className="w-7 h-7 rounded-lg bg-gray-50 dark:bg-white/[0.04] flex items-center justify-center shrink-0">
           <Icon size={14} className={iconClass} />
         </div>
-        <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+        <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 flex-1 min-w-0 truncate">
           {label}
         </p>
+        {badge && (
+          <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${badge.cls}`}>
+            {badge.text}
+          </span>
+        )}
       </div>
       <p className={`text-[22px] leading-tight font-bold tabular-nums ${valueClass}`}>
         {value}

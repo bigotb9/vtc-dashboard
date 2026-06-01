@@ -113,6 +113,16 @@ export type FinanceDeficitaire = {
   resultat:           number          // < 0 : ce véhicule client coûte ce mois
 }
 
+// État d'échéance d'un loyer (décalage de paiement M+1). Aligné sur
+// lib/finance/loyerEcheance.ts (type LoyerEtat).
+export type LoyerEtat =
+  | "futur"
+  | "en_cours"
+  | "a_venir"
+  | "a_verser"
+  | "en_retard"
+  | "deja_verse"
+
 export type CockpitFinances = {
   marge_mois: {
     mois:            string           // 'YYYY-MM' (mois courant)
@@ -125,9 +135,14 @@ export type CockpitFinances = {
   }
   variation_pct:  number | null       // null si marge précédente <= 0
   marge_en_baisse: boolean
-  loyers_dus_ce_mois:    number        // = helper bloc2.loyers_nets_a_verser (le DÛ)
-  verses_ce_mois:        number        // = Σ versements_clients WHERE mois = courant
-  arriere_mois_courant:  number        // = max(0, dus - versés)
+  // ── Loyer à verser (décalage M+1) : concerne le mois PRÉCÉDENT ──
+  mois_concerne:   string             // 'YYYY-MM' du loyer à traiter (= mois précédent)
+  etat:            LoyerEtat          // état d'échéance du loyer du mois concerné
+  loyer_a_verser:  number             // Σ loyers nets dus du mois concerné (le DÛ)
+  deja_verse:      number             // Σ versements_clients WHERE mois = mois_concerne
+  reliquat_mois:   number             // max(0, loyer_a_verser - deja_verse)
+  // ── Arriéré CUMULÉ : Σ reliquats des mois en retard (12 mois glissants) ──
+  arriere_cumule:  number
   deficitaires:   FinanceDeficitaire[] // trié par résultat croissant (pire en tête)
   avertissements: string[]
 }
