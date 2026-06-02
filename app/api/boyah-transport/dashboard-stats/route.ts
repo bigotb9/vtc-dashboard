@@ -4,212 +4,31 @@ import { requirePermission } from "@/lib/requirePermission"
 
 // Auth Lot Z (26/05/2026 audit) : requirePermission("view_dashboard") — la
 // route etait ouverte (finding 2.4), exposant les KPIs Boyah Transport.
+//
+// Perf (02/06/2026, fix 504) : l'agregation est entierement deportee dans
+// Postgres via la fonction RPC boyah_dashboard_stats (migration
+// 20260602120000). La route ne charge plus les ~65 000 lignes de
+// commandes_yango en memoire (ancien code : ~65 requetes paginees + >100
+// passes JS -> depassait maxDuration). Elle renvoie directement le jsonb
+// agrege. Format de sortie strictement identique a l'ancienne version.
 
 export const maxDuration = 30
-
-type RawOrder = {
-  status:     string
-  created_at: string
-  ended_at:   string | null
-  raw: {
-    price?:          number | string
-    driver_profile?: { id?: string; name?: string }
-    car?:            { brand_model?: string; brand?: string; model?: string; number?: string }
-    payment_method?: string
-    category?:       string
-  }
-}
-
-async function fetchAllOrders(): Promise<RawOrder[]> {
-  const all: RawOrder[] = []
-  const PAGE = 1000
-  let from   = 0
-  while (true) {
-    const { data, error } = await supabase
-      .from("commandes_yango")
-      .select("status, created_at, ended_at, raw")
-      .order("created_at", { ascending: false })
-      .range(from, from + PAGE - 1)
-    if (error || !data || data.length === 0) break
-    all.push(...(data as RawOrder[]))
-    if (data.length < PAGE) break
-    from += PAGE
-  }
-  return all
-}
 
 export async function GET(req: NextRequest) {
   const auth = await requirePermission(req, "view_dashboard")
   if (!auth.ok) return auth.response
 
   try {
-    const orders = await fetchAllOrders()
-
-    const now        = new Date()
-    const todayStr   = now.toISOString().slice(0, 10)
-    const monthStr   = now.toISOString().slice(0, 7)
-    const weekAgoStr = new Date(now.getTime() - 7  * 86400000).toISOString().slice(0, 10)
     // Commission Boyah Transport sur les courses Yango. Configurable via env
     // YANGO_COMMISSION_RATE (ex: "0.025" pour 2.5%, "0.05" pour 5%).
-    const COMMISSION = Number(process.env.YANGO_COMMISSION_RATE || 0.025)
+    const commission = Number(process.env.YANGO_COMMISSION_RATE || 0.025)
 
-    // Yango utilise plusieurs status pour les annulations : on les regroupe.
-    const isCancelled = (s: string | null | undefined) =>
-      !!s && (s === "cancelled" || s === "failed" || s.startsWith("cancel"))
-    // En cours = ni complétée ni annulée (driving, waiting, assigning, etc.)
-    const isInFlight = (s: string | null | undefined) =>
-      !!s && s !== "complete" && !isCancelled(s)
-
-    const completed = orders.filter(o => o.status === "complete")
-    const cancelled = orders.filter(o => isCancelled(o.status))
-    const inFlight  = orders.filter(o => isInFlight(o.status))
-
-    const price = (o: RawOrder) => Number(o.raw?.price || 0)
-
-    const todayCompleted = completed.filter(o => o.created_at?.startsWith(todayStr))
-    const weekCompleted  = completed.filter(o => (o.created_at?.slice(0, 10) || "") >= weekAgoStr)
-    const monthCompleted = completed.filter(o => o.created_at?.startsWith(monthStr))
-
-    const revToday = todayCompleted.reduce((s, o) => s + price(o), 0)
-    const revWeek  = weekCompleted.reduce((s, o) => s + price(o), 0)
-    const revMonth = monthCompleted.reduce((s, o) => s + price(o), 0)
-    const revTotal = completed.reduce((s, o) => s + price(o), 0)
-
-    // Revenus des 30 derniers jours
-    const dailyData = Array.from({ length: 30 }, (_, i) => {
-      const d   = new Date(now.getTime() - (29 - i) * 86400000)
-      const day = d.toISOString().slice(0, 10)
-      const rev = completed.filter(o => o.created_at?.startsWith(day)).reduce((s, o) => s + price(o), 0)
-      return {
-        date:     day,
-        label:    `${d.getDate()}/${d.getMonth() + 1}`,
-        revenus:  Math.round(rev),
-        comm:     Math.round(rev * COMMISSION),
-        courses:  completed.filter(o => o.created_at?.startsWith(day)).length,
-      }
+    const { data, error } = await supabase.rpc("boyah_dashboard_stats", {
+      p_commission: commission,
     })
+    if (error) throw error
 
-    // Revenus par heure aujourd'hui
-    const hourlyMap: Record<number, number> = {}
-    todayCompleted.forEach(o => {
-      const h = new Date(o.created_at).getHours()
-      hourlyMap[h] = (hourlyMap[h] || 0) + price(o)
-    })
-    const hourlyData = Array.from({ length: 24 }, (_, h) => ({
-      label: `${h}h`, value: Math.round(hourlyMap[h] || 0),
-    })).filter(h => h.value > 0)
-
-    // Top chauffeurs (par revenu total)
-    const driverMap: Record<string, { name: string; courses: number; revenue: number }> = {}
-    completed.forEach(o => {
-      const id   = o.raw?.driver_profile?.id || "unknown"
-      const name = o.raw?.driver_profile?.name || "Inconnu"
-      if (!driverMap[id]) driverMap[id] = { name, courses: 0, revenue: 0 }
-      driverMap[id].courses++
-      driverMap[id].revenue += price(o)
-    })
-    const topDrivers = Object.values(driverMap)
-      .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, 10)
-      .map(d => ({ ...d, revenue: Math.round(d.revenue), commission: Math.round(d.revenue * COMMISSION) }))
-
-    // Top véhicules — groupé par IMMATRICULATION (pas par modèle).
-    // Affichage : "31021WWCI · Toyota Yaris" si possible.
-    const vehicleMap: Record<string, { name: string; courses: number; revenue: number }> = {}
-    completed.forEach(o => {
-      const num   = o.raw?.car?.number || ""
-      const model = o.raw?.car?.brand_model || (o.raw?.car?.brand ? `${o.raw.car.brand} ${o.raw.car.model || ""}`.trim() : "")
-      const key   = num || model || "Inconnu"
-      const display = num
-        ? (model ? `${num} · ${model}` : num)
-        : (model || "Inconnu")
-      if (!vehicleMap[key]) vehicleMap[key] = { name: display, courses: 0, revenue: 0 }
-      vehicleMap[key].courses++
-      vehicleMap[key].revenue += price(o)
-    })
-    const topVehicles = Object.values(vehicleMap)
-      .map(d => ({ ...d, revenue: Math.round(d.revenue) }))
-      .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, 6)
-
-    // Répartition paiements
-    const payMap: Record<string, number> = {}
-    completed.forEach(o => {
-      const k = o.raw?.payment_method || "Autre"
-      payMap[k] = (payMap[k] || 0) + 1
-    })
-    const paymentData = Object.entries(payMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value)
-
-    // Espèces vs sans espèces (revenu)
-    let especes = 0, sanEspeces = 0
-    completed.forEach(o => {
-      const p = price(o)
-      if (o.raw?.payment_method === "cash") especes += p
-      else sanEspeces += p
-    })
-
-    // Période couverte
-    const allDates = orders.map(o => o.created_at).filter(Boolean).sort()
-    const periodFrom = allDates[0]?.slice(0, 10) || null
-    const periodTo   = allDates[allDates.length - 1]?.slice(0, 10) || null
-
-    // Tendance semaine vs semaine précédente
-    const prevWeekAgo = new Date(now.getTime() - 14 * 86400000).toISOString().slice(0, 10)
-    const prevWeek    = completed.filter(o => {
-      const d = o.created_at?.slice(0, 10) || ""
-      return d >= prevWeekAgo && d < weekAgoStr
-    })
-    const revPrevWeek = prevWeek.reduce((s, o) => s + price(o), 0)
-    const trendWeek   = revPrevWeek > 0 ? ((revWeek - revPrevWeek) / revPrevWeek * 100) : null
-
-    // Taux complétion par jour (30j) pour sparkline
-    const completionTrend = dailyData.map(d => {
-      const total = orders.filter(o => o.created_at?.startsWith(d.date)).length
-      return { label: d.label, taux: total > 0 ? Math.round(d.courses / total * 100) : 0 }
-    })
-
-    return NextResponse.json({
-      ok: true,
-      period: { from: periodFrom, to: periodTo },
-      totals: {
-        orders:          orders.length,
-        completed:       completed.length,
-        cancelled:       cancelled.length,
-        inFlight:        inFlight.length,
-        // Taux de complétion : on EXCLUT les courses en cours du dénominateur
-        // (sinon le taux est artificiellement bas car les en-cours seront soit
-        // complétées soit annulées plus tard, on ne sait pas encore).
-        completionRate:  (completed.length + cancelled.length) > 0
-          ? Math.round(completed.length / (completed.length + cancelled.length) * 100)
-          : 0,
-        avgOrderValue:   completed.length > 0 ? Math.round(revTotal / completed.length) : 0,
-        commissionRate:  COMMISSION,
-      },
-      revenue: {
-        today: Math.round(revToday),
-        week:  Math.round(revWeek),
-        month: Math.round(revMonth),
-        total: Math.round(revTotal),
-        prevWeek: Math.round(revPrevWeek),
-        trendWeekPct: trendWeek !== null ? Math.round(trendWeek) : null,
-        especes:    Math.round(especes),
-        sanEspeces: Math.round(sanEspeces),
-      },
-      commission: {
-        today: Math.round(revToday  * COMMISSION),
-        week:  Math.round(revWeek   * COMMISSION),
-        month: Math.round(revMonth  * COMMISSION),
-        total: Math.round(revTotal  * COMMISSION),
-      },
-      charts: {
-        daily:      dailyData,
-        hourly:     hourlyData,
-        payments:   paymentData,
-        completion: completionTrend,
-      },
-      topDrivers,
-      topVehicles,
-    })
+    return NextResponse.json(data)
   } catch (err) {
     console.error("[dashboard-stats]", err)
     return NextResponse.json({ ok: false, error: (err as Error).message }, { status: 500 })
