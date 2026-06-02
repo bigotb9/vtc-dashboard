@@ -183,13 +183,23 @@ function FinanceCards({
     )
   }
 
+  // ── Marge du mois : DEUX niveaux ──
+  //   marge_reelle = marge FLOTTE (bloc1+bloc2−bloc4), hors Yango → la valeur de la card.
+  //   total_consolide = flotte + commission Yango générée (bloc3) → sous-libellé.
   const marge = finances.marge_mois.marge_reelle
   const margePositive = marge >= 0
+  const total = finances.marge_mois.total_consolide
+  const totalPositive = total >= 0
+  const commissionYango = finances.marge_mois.commission_yango
   const variation = finances.variation_pct
   const variationLabel = variation != null
     ? ` · ${variation >= 0 ? "+" : ""}${variation}% vs mois préc.`
     : ""
   const margeTone = finances.marge_en_baisse || marge < 0 ? "negative" : margePositive ? "positive" : "neutral"
+  // « Avec Yango » : on précise la part Yango si elle existe ce mois.
+  const yangoSub = commissionYango > 0
+    ? `Avec Yango ${totalPositive ? "+" : "−"} ${formatMontant(total)} F · dont +${formatMontant(commissionYango)} F`
+    : `Avec Yango ${totalPositive ? "+" : "−"} ${formatMontant(total)} F`
 
   // ── Loyer à verser (décalage M+1) : concerne le mois PRÉCÉDENT ──
   const badge = etatBadge(finances.etat)
@@ -208,12 +218,13 @@ function FinanceCards({
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-      {/* Marge du mois */}
+      {/* Marge du mois — flotte (valeur) + total avec Yango (sous-libellé) */}
       <Card
         icon={TrendingUp}
-        label="MARGE DU MOIS"
+        label="MARGE DU MOIS — FLOTTE"
         value={`${margePositive ? "+" : "−"} ${formatMontant(marge)} F`}
-        sub={`Ce mois (à ce jour)${variationLabel}`}
+        sub={`Marge flotte hors Yango (à ce jour)${variationLabel}`}
+        sub2={yangoSub}
         tone={margeTone}
       />
 
@@ -244,11 +255,12 @@ type CardProps = {
   label:  string
   value:  string
   sub:    string
+  sub2?:  string
   tone:   "neutral" | "positive" | "negative"
   badge?: { text: string; cls: string }
 }
 
-function Card({ icon: Icon, label, value, sub, tone, badge }: CardProps) {
+function Card({ icon: Icon, label, value, sub, sub2, tone, badge }: CardProps) {
   const borderClass = tone === "negative"
     ? "border-red-200 dark:border-red-500/30"
     : tone === "positive"
@@ -286,6 +298,9 @@ function Card({ icon: Icon, label, value, sub, tone, badge }: CardProps) {
         {value}
       </p>
       <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1">{sub}</p>
+      {sub2 && (
+        <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400 mt-0.5">{sub2}</p>
+      )}
     </div>
   )
 }

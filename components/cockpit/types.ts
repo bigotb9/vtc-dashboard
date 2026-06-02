@@ -125,9 +125,10 @@ export type LoyerEtat =
 
 export type CockpitFinances = {
   marge_mois: {
-    mois:            string           // 'YYYY-MM' (mois courant)
-    marge_reelle:    number
-    total_consolide: number
+    mois:             string          // 'YYYY-MM' (mois courant)
+    marge_reelle:     number          // FLOTTE seule (hors Yango)
+    total_consolide:  number          // flotte + commission Yango générée
+    commission_yango: number          // part Yango du mois (total_consolide − marge_reelle)
   }
   marge_prec: {
     mois:         string              // 'YYYY-MM' (mois précédent)

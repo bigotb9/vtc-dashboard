@@ -16,7 +16,8 @@
  *   (engagement comptable) — getMargeConsolidee n'est pas modifié.
  *
  * Retourne :
- *   - marge_mois        : marge réelle + total consolidé du mois courant
+ *   - marge_mois        : marge réelle FLOTTE (hors Yango) + total consolidé
+ *                         (avec commission Yango) + commission_yango du mois courant
  *   - marge_prec        : marge réelle du mois précédent
  *   - variation_pct     : (courant - précédent) / précédent (null si <= 0)
  *   - marge_en_baisse   : courant < précédent (et précédent > 0)
@@ -101,8 +102,9 @@ export async function GET(req: NextRequest) {
       data: {
         marge_mois: {
           mois:            margeCourant.mois,
-          marge_reelle:    Math.round(margeCur),
-          total_consolide: Math.round(margeCourant.total_consolide),
+          marge_reelle:    Math.round(margeCur),                                    // FLOTTE seule (hors Yango)
+          total_consolide: Math.round(margeCourant.total_consolide),               // flotte + commission Yango
+          commission_yango: Math.round(margeCourant.bloc3_yango_estime.commission), // part Yango générée du mois
         },
         marge_prec: {
           mois:         margePrec.mois,

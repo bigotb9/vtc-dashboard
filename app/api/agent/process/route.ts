@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import Anthropic from "@anthropic-ai/sdk"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
-import { getMargeConsolidee } from "@/lib/finance/margeConsolidee"
+import { getMargeConsolidee, TAUX_COMMISSION_YANGO } from "@/lib/finance/margeConsolidee"
 import { getLedgerLoyersByClient } from "@/lib/finance/getArriereLoyers"
 
 export const maxDuration = 60 // Vercel max pour plan Pro (évite les timeouts Claude Opus)
@@ -98,14 +98,15 @@ Les 4 blocs (objet marge_consolidee) :
 - bloc1 (véhicules propres) : recettes − dépenses de la flotte Boyah Group.
 - bloc2 (gestion clients) : recettes des véhicules sous gestion − loyers nets dus aux clients − dépenses absorbées par Boyah. Un résultat négatif = ces véhicules clients ont coûté de l'argent ce mois.
 - bloc4 (charges de structure) : charges sans véhicule (loyer bureau, salaires admin, etc.).
-- bloc3 (Yango) : NON IMPLÉMENTÉ (=0).
+- bloc3 (Yango) : commission GÉNÉRÉE = 2,5% du CA des courses Yango complétées du mois. Revenu SÉPARÉ des recettes Wave (aucun double comptage). Intégré UNIQUEMENT dans total_consolide, JAMAIS dans marge_reelle.
 
 GARDE ANTI-CONFUSION (impératif) :
-- marge_reelle = chiffre RÉEL encaissé. total_consolide inclut une ESTIMATION Yango. Cite marge_reelle, PAS total_consolide — sauf si on te demande explicitement le total avec Yango.
-- Le bloc Yango est non implémenté (=0). N'invente JAMAIS de revenu ni de commission Yango. Ne gonfle jamais la marge avec une estimation Yango.
+- marge_reelle = marge de la FLOTTE (bloc1 + bloc2 − bloc4), HORS Yango. total_consolide = marge_reelle + commission Yango générée (bloc3). Les deux sont des chiffres RÉELS mais de natures différentes : marge_reelle = exploitation flotte ; total_consolide = vision économique AVEC la commission Yango.
+- Par défaut, "marge" / "rentabilité de la flotte" → cite marge_reelle. "Avec Yango" / vision globale → cite total_consolide en précisant la part Yango (bloc3.commission_yango). Ne CONFONDS jamais les deux. Exemple : flotte −199 328 F, dont Yango +316 290 F → total consolidé +116 962 F.
+- La commission Yango N'est PAS encaissée en compta SYSCOHADA (revenu généré). N'invente JAMAIS un montant Yango : utilise UNIQUEMENT bloc3.commission_yango fourni dans le contexte.
 
-COMMISSION YANGO (Boyah Transport) — opérationnel ≠ marge :
-- La commission Yango (Boyah Transport, 2,5% du CA prestataires) est une info OPÉRATIONNELLE réelle que tu peux donner quand on te le demande (depuis les données transport). MAIS elle n'est PAS ENCORE intégrée dans la marge consolidée (bloc3 = non implémenté). Donc : quand tu donnes la commission Yango, précise toujours que ce revenu n'est pas encore inclus dans la marge réelle / le calcul de rentabilité consolidé. Ne jamais additionner toi-même la commission Yango à marge_reelle.
+COMMISSION YANGO (Boyah Transport) :
+- La commission Yango (2,5% du CA prestataires) est un revenu GÉNÉRÉ par Boyah Transport, désormais intégré à la marge consolidée via bloc3 → total_consolide (PAS dans marge_reelle). Ne l'additionne JAMAIS toi-même à marge_reelle (ce serait un double comptage avec total_consolide) : pour la vision avec Yango, cite directement total_consolide. Les flux Yango détaillés (CA, courses, commission par fenêtre) viennent des données transport ; le bloc3 de la marge n'en retient que la commission mensuelle générée du mois calendaire.
 
 AVERTISSEMENTS (impératif) :
 - Si marge_consolidee.avertissements contient des éléments, tu DOIS les mentionner quand tu cites la marge.
@@ -196,6 +197,18 @@ function classifyIntent(text: string): IntentType {
   const strongMarketTerms = ["concurrent", "concurrence", "indriver", "bolt",
     "competiteur", "part de marche", "positionnement", "reglementation", "veille"]
   if (strongMarketTerms.some(w => t.includes(w))) return "market_research"
+
+  // 1bis) Marge consolidee AVEC Yango (teste AVANT l'override Yango) : si la
+  //    question mele un terme de MARGE et un terme Yango, c'est la vue
+  //    FINANCIERE consolidee qui est voulue (marge flotte + total avec Yango).
+  //    financial_query a desormais bloc3 en contexte (commission Yango integree
+  //    dans total_consolide). Le simple "CA Yango" / "commission Yango" / nombre
+  //    de courses ne contient PAS de terme de marge -> reste operational.
+  const margeTerms = ["marge", "rentab", "rentable", "consolide"]
+  const yangoTerms = ["yango", "prestataire", "boyah transport"]
+  if (margeTerms.some(w => t.includes(w)) && yangoTerms.some(w => t.includes(w))) {
+    return "financial_query"
+  }
 
   // 2) Override Yango-operationnel : termes "coeur" designant nos operations Yango.
   //    Route operational AVANT le filtre financier (qui n'a pas la donnee Yango).
@@ -320,19 +333,21 @@ async function fetchContext(intent: IntentType) {
         quasi_vide:    margeCur.bloc4_charges_structure.quasi_vide,
       },
       bloc3_yango: {
-        commission_estimee: Math.round(margeCur.bloc3_yango_estime.commission),
-        non_implemente:     margeCur.bloc3_yango_estime.non_implemente,
-        note:               "Estimation NON encaissée, exclue de marge_reelle. Ne pas inventer de revenu Yango.",
+        commission_yango: Math.round(margeCur.bloc3_yango_estime.commission),
+        ca_courses:       Math.round(margeCur.bloc3_yango_estime.ca_courses),
+        note:             "Commission Yango GÉNÉRÉE (2,5% du CA des courses complétées du mois). Intégrée dans total_consolide, JAMAIS dans marge_reelle. Revenu généré, pas encore encaissé en compta SYSCOHADA. Ne l'additionne pas toi-même à marge_reelle.",
       },
       total_consolide:            Math.round(margeCur.total_consolide),
       variation_pct_vs_mois_prec: variationPct,
       avertissements:             margeCur.avertissements,
       // Mois précédent exposé comme référence la plus récente fiable :
       // utile quand le mois courant est vide (début de mois). Mêmes resume
-      // que le mois courant, sans bloc3_yango (non implémenté de toute façon).
+      // que le mois courant. total_consolide inclut la commission Yango du
+      // mois précédent (bloc3), exposée ici via commission_yango.
       marge_mois_precedent: {
-        mois:         margePrec.mois,
-        marge_reelle: Math.round(margePrec.marge_reelle),
+        mois:             margePrec.mois,
+        marge_reelle:     Math.round(margePrec.marge_reelle),
+        commission_yango: Math.round(margePrec.bloc3_yango_estime.commission),
         bloc1_resume: {
           libelle:      "Véhicules propres",
           recettes:     Math.round(margePrec.bloc1_vehicules_propres.recettes),
@@ -727,7 +742,9 @@ async function fetchContext(intent: IntentType) {
   // evolution_mois_pct ré-exposés ici. ⚠️ mois courant PARTIEL vs mois précédent
   // COMPLET (cf. note ci-dessous, idem trendWeekPct).
   const fetchTransport = async () => {
-    const COMMISSION = Number(process.env.YANGO_COMMISSION_RATE || 0.025)
+    // Taux : source UNIQUE = TAUX_COMMISSION_YANGO (env YANGO_COMMISSION_RATE),
+    // partagée avec le helper marge (lib/finance/margeConsolidee).
+    const COMMISSION = TAUX_COMMISSION_YANGO
     const { data, error } = await sb.rpc("boyah_dashboard_stats", { p_commission: COMMISSION })
     if (error || !data) {
       return { note: "Données Boyah Transport indisponibles (erreur agrégation SQL).", erreur: error?.message ?? "no data" }
@@ -882,7 +899,7 @@ function buildUserContent(intent: IntentType, message: string, context: Record<s
       return `[ANALYSE DIRECTE — commence immédiatement]\n\n🌍 Veille marché VTC Abidjan pour Boyah Group.\n\nAnalyse :\n1. Tendances marché VTC Côte d'Ivoire (Abidjan) — utilise les données web\n2. Mouvements concurrents (Yango, InDriver, Bolt) — positionnement actuel\n3. Opportunités concrètes pour Boyah Group vu nos données actuelles\n4. Menaces et risques\n5. 2 recommandations stratégiques actionnables\n\nDONNÉES ENTREPRISE :\n${ctxStr}${web}`
 
     case "financial_query":
-      return `${message}\n\n📊 DONNÉES FINANCIÈRES BOYAH GROUP :\n${ctxStr}\n\n⚠️ MARGE / rentabilité : cite UNIQUEMENT finances_boyah_group.marge_consolidee.marge_reelle (jamais total_consolide sauf demande explicite, jamais de Yango inventé). Si marge_consolidee.avertissements n'est pas vide, mentionne-les — notamment, si les charges de structure ne sont pas saisies, préviens que la marge est SURÉVALUÉE. Le CA (ca_mois_actuel) est l'encaissement, PAS la marge — ne les confonds pas.`
+      return `${message}\n\n📊 DONNÉES FINANCIÈRES BOYAH GROUP :\n${ctxStr}\n\n⚠️ MARGE / rentabilité — DEUX niveaux, ne les confonds JAMAIS :\n• marge_consolidee.marge_reelle = marge de la FLOTTE (véhicules propres + gestion clients − charges), HORS Yango.\n• marge_consolidee.total_consolide = total AVEC la commission Yango générée (= marge_reelle + marge_consolidee.bloc3_yango.commission_yango).\nQuand on te parle de marge / rentabilité, présente les DEUX : la marge flotte ET le total avec Yango, en explicitant la part Yango (bloc3_yango.commission_yango). N'additionne JAMAIS la commission toi-même (elle est DÉJÀ dans total_consolide) et n'invente aucun montant Yango. Si marge_consolidee.avertissements n'est pas vide, mentionne-les — notamment, si les charges de structure ne sont pas saisies, préviens que la marge est SURÉVALUÉE. Le CA (ca_mois_actuel) est l'encaissement, PAS la marge — ne les confonds pas.`
 
     case "driver_query":
       return `${message}\n\n👥 DONNÉES CHAUFFEURS :\n${ctxStr}`

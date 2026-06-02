@@ -9,13 +9,13 @@
  * Spec validée Emmanuel le 01/06/2026. Premier livrable : helper + route de
  * test uniquement, AUCUN branchement Cockpit/BoyahBot.
  *
- * Décomposition en 4 blocs, sur 2 niveaux (réel vs estimé Yango) :
+ * Décomposition en 4 blocs, sur 2 niveaux (flotte réelle vs total avec Yango) :
  *   - Bloc 1 : véhicules propres (sous_gestion=false)
  *   - Bloc 2 : gestion clients (sous_gestion=true) + détail par véhicule
- *   - Bloc 3 : Yango estimé — EN ATTENTE (montant des courses dans raw jsonb,
- *              structure inconnue + pas de lien véhicule). Retourné à 0 avec
- *              non_implemente=true ; le type est conservé pour l'accueillir
- *              plus tard sans refonte.
+ *   - Bloc 3 : commission Yango GÉNÉRÉE (2,5 % du CA des courses complétées du
+ *              mois, via RPC boyah_commission_for_month). Revenu SÉPARÉ des
+ *              recettes Wave (aucun double comptage). OPTION B (02/06/2026) :
+ *              n'entre QUE dans total_consolide, JAMAIS dans marge_reelle.
  *   - Bloc 4 : charges de structure (vehicule_id IS NULL)
  *
  * Sources (décidées en Phase A, conformes à l'audit double-comptage du 01/06) :
@@ -39,8 +39,16 @@ import { calculLoyerNet } from "@/lib/clients/calculLoyerNet"
  *  « quasi-vides » (non saisies) → la marge réelle est surévaluée. */
 export const SEUIL_STRUCTURE_QUASI_VIDE = 50_000
 
-/** Commission Yango estimée (2,5 % du CA courses). Utilisée plus tard. */
-export const TAUX_COMMISSION_YANGO = 0.025
+/**
+ * Taux de commission Yango (Boyah Transport) = part Boyah sur le CA des courses.
+ *
+ * SOURCE UNIQUE du taux dans tout le code : l'env `YANGO_COMMISSION_RATE`
+ * (fallback 0,025). Cette constante en est la matérialisation et doit être
+ * importée partout où le taux est nécessaire (helper marge + agent BoyahBot),
+ * de façon à ne JAMAIS le redéfinir en dur ailleurs. La fonction SQL
+ * `boyah_commission_for_month` reçoit cette valeur en paramètre `p_commission`.
+ */
+export const TAUX_COMMISSION_YANGO = Number(process.env.YANGO_COMMISSION_RATE || 0.025)
 
 export type MargeConsolidee = {
   mois: string                       // 'YYYY-MM'
@@ -75,17 +83,18 @@ export type MargeConsolidee = {
     quasi_vide: boolean              // true si total < seuil → avertissement
   }
 
-  // NIVEAU 1 — réel
+  // NIVEAU 1 — réel (FLOTTE, hors Yango). N'INCLUT JAMAIS la commission Yango.
   marge_reelle: number               // bloc1.marge + bloc2.resultat - bloc4.total
 
   bloc3_yango_estime: {
-    ca_courses: number               // CA total courses complétées du mois
-    commission: number               // 2,5% du CA
-    estimation: true                 // toujours true : non encaissé en compta
-    non_implemente: boolean          // true tant que l'extraction raw n'est pas faite
+    ca_courses: number               // CA des courses complétées du mois (réel)
+    commission: number               // TAUX_COMMISSION_YANGO × ca_courses (revenu GÉNÉRÉ)
+    estimation: boolean              // false : calcul déterministe (plus une estimation)
+    non_implemente: boolean          // false depuis le branchement de boyah_commission_for_month
   }
 
-  // TOTAL
+  // TOTAL CONSOLIDÉ = marge flotte + commission Yango générée (non encaissée en
+  // compta SYSCOHADA). C'est le SEUL endroit où la commission Yango est intégrée.
   total_consolide: number            // marge_reelle + bloc3.commission
 
   avertissements: string[]
@@ -296,15 +305,42 @@ export async function getMargeConsolidee(
     quasi_vide: structureTotal < SEUIL_STRUCTURE_QUASI_VIDE,
   }
 
-  // ── 7. Bloc 3 — Yango estimé (EN ATTENTE) ───────────────────────────────
+  // ── 7. Bloc 3 — commission Yango GÉNÉRÉE (revenu, OPTION B) ──────────────
+  //   2,5 % du CA des courses COMPLÉTÉES du mois calendaire traité (logique
+  //   d'engagement, comme le loyer imputé sur M). Revenu SÉPARÉ des recettes
+  //   Wave → aucun double comptage. Entre UNIQUEMENT dans total_consolide,
+  //   JAMAIS dans marge_reelle (décision Emmanuel 02/06/2026).
+  //
+  //   Source : RPC boyah_commission_for_month (agrégée côté Postgres, même
+  //   règle is_complete que boyah_dashboard_stats). On NE pagine JAMAIS
+  //   commandes_yango ici (anti-pattern 504). Si la RPC échoue (ex. fonction
+  //   pas encore déployée), on dégrade proprement : commission = 0 + avert.
+  let bloc3CaCourses = 0
+  let bloc3Commission = 0
+  let bloc3Indispo = false
+  {
+    const { data: commRaw, error: commErr } = await supabase.rpc(
+      "boyah_commission_for_month",
+      { p_mois: dateFrom, p_commission: TAUX_COMMISSION_YANGO },
+    )
+    if (commErr || commRaw == null) {
+      bloc3Indispo = true
+    } else {
+      const c = commRaw as { ca_courses?: number; commission?: number }
+      bloc3CaCourses = Number(c.ca_courses ?? 0)
+      bloc3Commission = Number(c.commission ?? 0)
+    }
+  }
   const bloc3 = {
-    ca_courses: 0,
-    commission: 0,
-    estimation: true as const,
-    non_implemente: true,
+    ca_courses: bloc3CaCourses,
+    commission: bloc3Commission,
+    estimation: false,
+    non_implemente: false,
   }
 
   // ── 8. Niveaux & total ──────────────────────────────────────────────────
+  //   marge_reelle = FLOTTE seule (hors Yango) — INCHANGÉE.
+  //   total_consolide = marge flotte + commission Yango générée.
   const marge_reelle = bloc1.marge + bloc2.resultat - bloc4.total
   const total_consolide = marge_reelle + bloc3.commission
 
@@ -315,9 +351,9 @@ export async function getMargeConsolidee(
       "Charges de structure non encore saisies, marge réelle surévaluée.",
     )
   }
-  if (bloc3.non_implemente) {
+  if (bloc3Indispo) {
     avertissements.push(
-      "Bloc Yango non implémenté (structure raw à clarifier) — total_consolide = marge_reelle pour l'instant.",
+      "Commission Yango indisponible ce mois (agrégation boyah_commission_for_month en échec) — total_consolide = marge_reelle.",
     )
   }
 
