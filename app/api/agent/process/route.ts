@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import Anthropic from "@anthropic-ai/sdk"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
-import { calculLoyerNet } from "@/lib/clients/calculLoyerNet"
 import { getMargeConsolidee } from "@/lib/finance/margeConsolidee"
+import { getLedgerLoyersByClient } from "@/lib/finance/getArriereLoyers"
 
 export const maxDuration = 60 // Vercel max pour plan Pro (évite les timeouts Claude Opus)
 
@@ -74,7 +74,17 @@ BOYAH GROUP (flotte principale) :
   → Bénéfice Boyah sur ce véhicule = revenu − net client − charge Boyah
   → Fenêtre de paiement : Boyah verse entre le 5 et le 10 du mois SUIVANT l'exploitation
     (ex : exploitation mars → versement au client entre 5 et 10 avril).
-    Statuts : deja_verse / a_verser (5-10) / en_retard (après 10) / pas_encore_du (avant 5) / en_cours / futur
+    Statuts : deja_verse / a_verser (5-10) / en_retard (après 10) / a_venir (avant 5) / en_cours / futur
+  → ARRIÉRÉ & loyers dus : fournis par une SOURCE CONSOLIDÉE UNIQUE (chiffres identiques au Cockpit).
+    Ne les recalcule JAMAIS toi-même : cite total_retards_cumules (arriéré cumulé), total_a_rattraper
+    (par client) et l'historique tels qu'ils arrivent dans le contexte.
+  → Le détail clients ne liste que les mois PERTINENTS de la fenêtre. L'absence d'un client ou d'un
+    mois dans les retards ne veut PAS dire "rien à verser" : un loyer peut être a_venir / a_verser /
+    en_cours (donc pas encore exigible) sans être un retard. Ne déduis rien d'une absence.
+  → DATE DE VERSEMENT : pour la fenêtre de paiement d'un loyer, utilise TOUJOURS le champ
+    fenetre_paiement fourni dans l'historique (dates exactes du / au, 'YYYY-MM-DD'). Ne calcule
+    JAMAIS la date toi-même. Le loyer du mois M se verse entre le 5 et le 10 du mois SUIVANT (M+1),
+    JAMAIS M+2 (ex : loyer de mai → versé entre le 5 et le 10 JUIN, pas juillet).
 
 ═══════════════════════════════════════
 💰 MARGE & RENTABILITÉ — règles strictes
@@ -621,146 +631,65 @@ async function fetchContext(intent: IntentType) {
 
   // ── Données clients (sous gestion)
   //   IMPORTANT : c'est Boyah qui VERSE de l'argent AUX clients (propriétaires des véhicules
-  //   confiés en gestion), jamais l'inverse. Cette fonction calcule pour chaque mois
-  //   des 6 derniers mois : montant dû, montant déjà versé, statut (deja_verse / a_verser /
-  //   en_retard / pas_encore_du / en_cours / futur).
+  //   confiés en gestion), jamais l'inverse.
+  //   SOURCE UNIQUE (harmonisation 01/06/2026) : getLedgerLoyersByClient
+  //   (lib/finance/getArriereLoyers) — EXACTEMENT le même calcul que le Cockpit
+  //   (dépenses via operations, loyer net via calculLoyerNet, reliquat partiel,
+  //   décalage de paiement M+1, fenêtre 12 mois, plafond created_at). Plus aucun
+  //   recalcul maison ici : on ne fait que reformater le ledger pour BoyaBot.
   const fetchClients = async () => {
     const today = new Date()
-    // Lot U (audit 27/05/2026) : delegation au helper calculLoyerNet pour
-    // la formule du loyer net (single source of truth).
 
-    // Clients + véhicules sous gestion
-    const [{ data: clientsRaw }, { data: vehsGestion }, { data: versementsRaw }] = await Promise.all([
-      sb.from("clients").select("*"),
-      sb.from("vehicules")
-        .select("id_vehicule, immatriculation, montant_mensuel_client, id_client")
-        .eq("sous_gestion", true),
-      sb.from("versements_clients").select("id_client, mois, montant, date_versement"),
+    const [ledger, clientsCountRes, vehCountRes] = await Promise.all([
+      getLedgerLoyersByClient(sb, today, 12),
+      // nb_clients = TOUS les clients (y compris sans véhicule sous gestion).
+      sb.from("clients").select("id", { count: "exact", head: true }),
+      // nb_veh_sous_gestion = TOUS les véhicules sous gestion (y c. id_client null).
+      sb.from("vehicules").select("id_vehicule", { count: "exact", head: true }).eq("sous_gestion", true),
     ])
 
-    // Construire la liste des 6 derniers mois (YYYY-MM)
-    const moisList: string[] = []
-    for (let i = 0; i < 6; i++) {
-      const d = new Date(today.getFullYear(), today.getMonth() - i, 1)
-      moisList.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`)
-    }
-
-    // Pour chaque mois : revenus + dépenses par véhicule
-    type VehMois = { id_vehicule: number; revenu: number; depenses: number }
-    const vehParMois = new Map<string, Map<number, VehMois>>()
-    for (const m of moisList) {
-      const [y, mm] = m.split("-").map(Number)
-      const from = `${m}-01`
-      const to   = new Date(y, mm, 1).toISOString().slice(0, 10)
-      const [{ data: recs }, { data: deps }] = await Promise.all([
-        sb.from("vue_recettes_vehicules")
-          .select(`immatriculation, "Montant net", "Horodatage"`)
-          .gte("Horodatage", from).lt("Horodatage", to),
-        sb.from("depenses_vehicules")
-          // Lot U (audit 27/05/2026) : type_depense recupere pour exclure les
-          // reversements du calcul de "depenses" cumulees par vehicule/mois
-          // (fix finding 1.1 — sinon les reversements gonflaient le surplus
-          // et minoraient le netDu calcule plus bas).
-          .select("id_vehicule, montant, date_depense, type_depense")
-          .gte("date_depense", from).lt("date_depense", to),
-      ])
-      const map = new Map<number, VehMois>()
-      for (const v of vehsGestion || []) {
-        const revenu = (recs || [])
-          .filter(r => String(r.immatriculation).toLowerCase() === v.immatriculation.toLowerCase())
-          .reduce((s, r) => s + Number((r as Record<string, unknown>)["Montant net"] || 0), 0)
-        const depenses = (deps || [])
-          .filter(d => d.id_vehicule === v.id_vehicule)
-          // Lot U : exclure les reversements (coherent avec PDF Releve + page Clients)
-          .filter(d => !String((d as { type_depense?: string | null }).type_depense ?? "")
-            .toLowerCase().includes("reversement"))
-          .reduce((s, d) => s + Number(d.montant || 0), 0)
-        map.set(v.id_vehicule, { id_vehicule: v.id_vehicule, revenu, depenses })
-      }
-      vehParMois.set(m, map)
-    }
-
-    // Index versements par (id_client, mois)
-    const versMap = new Map<string, number>()
-    for (const v of versementsRaw || []) {
-      versMap.set(`${v.id_client}|${v.mois}`, Number(v.montant || 0))
-    }
-
-    // Statut de versement (miroir de app/clients/page.tsx)
-    function statut(mois: string, deja: boolean): string {
-      if (deja) return "deja_verse"
-      const [y, m] = mois.split("-").map(Number)
-      const debutMois  = new Date(y, m - 1, 1)
-      const finMois    = new Date(y, m, 0, 23, 59, 59)
-      const jour5Next  = new Date(y, m, 5)
-      const jour10Next = new Date(y, m, 10, 23, 59, 59)
-      if (today < debutMois)  return "futur"
-      if (today <= finMois)   return "en_cours"
-      if (today < jour5Next)  return "pas_encore_du"
-      if (today <= jour10Next) return "a_verser"
-      return "en_retard"
-    }
-
-    // Agréger par client
-    const clients = (clientsRaw || []).map(c => {
-      const vehsClient = (vehsGestion || []).filter(v => v.id_client === c.id)
-      const mensuelTotal = vehsClient.reduce((s, v) => s + Number(v.montant_mensuel_client || 0), 0)
-
-      // Calcul du dû pour chaque mois
-      const moisDetails = moisList.map(m => {
-        const vehsMois = vehParMois.get(m)!
-        let netDu = 0
-        for (const v of vehsClient) {
-          const vm = vehsMois.get(v.id_vehicule)
-          if (!vm) continue
-          // Lot U : helper unique. Les reversements sont deja filtres en amont
-          // (cf. fetchAllVehMois ci-dessus), donc excludeReversements=false.
-          const { loyerNet } = calculLoyerNet(
-            Number(v.montant_mensuel_client || 0),
-            [{ montant: vm.depenses }],
-            { excludeReversements: false },
-          )
-          netDu += loyerNet
-        }
-        const verse = versMap.get(`${c.id}|${m}`) || 0
-        return {
-          mois: m,
-          net_du_au_client:  Math.round(netDu),
-          montant_deja_verse: Math.round(verse),
-          statut: statut(m, verse > 0),
-        }
-      })
-
-      const enRetard = moisDetails.filter(m => m.statut === "en_retard")
-      const aVerser  = moisDetails.filter(m => m.statut === "a_verser")
-
+    const clients = ledger.clients.map(c => {
+      const enRetard = c.mois.filter(m => m.etat === "en_retard")
+      const aVerser  = c.mois.filter(m => m.etat === "a_verser")
       return {
-        nom: c.nom,
+        nom: c.client,
         telephone: c.telephone,
-        nb_vehicules: vehsClient.length,
-        immatriculations: vehsClient.map(v => v.immatriculation),
-        montant_mensuel_total: mensuelTotal,
+        nb_vehicules: c.nb_vehicules,
+        immatriculations: c.immatriculations,
+        montant_mensuel_total: c.montant_mensuel_total,
+        // Retards : nombre de mois en retard + reliquat cumulé (== part client de l'arriéré Cockpit).
         mois_en_retard: enRetard.length,
-        total_a_rattraper: enRetard.reduce((s, m) => s + m.net_du_au_client, 0),
+        total_a_rattraper: c.total_reliquat,
+        // Échéance courante (fenêtre 5-10 du mois) : reliquat restant à verser.
         mois_a_verser_maintenant: aVerser.length,
-        total_a_verser_maintenant: aVerser.reduce((s, m) => s + m.net_du_au_client, 0),
-        historique_6_mois: moisDetails,
+        total_a_verser_maintenant: aVerser.reduce((s, m) => s + m.reliquat, 0),
+        // Historique complet (ledger) : dû / versé / reliquat / état / activité par mois.
+        // fenetre_paiement = dates EXACTES de versement (5-10 de M+1) à citer telles quelles.
+        historique: c.mois.map(m => ({
+          mois: m.mois,
+          net_du_au_client:   m.du,
+          montant_deja_verse: m.verse,
+          reliquat:           m.reliquat,
+          statut:             m.etat,
+          vehicule_actif:     m.actif,
+          fenetre_paiement:   m.fenetre_paiement,   // { du:'YYYY-MM-DD', au:'YYYY-MM-DD' }
+        })),
       }
     })
 
-    // Totaux globaux
-    const total_retards  = clients.reduce((s, c) => s + c.total_a_rattraper, 0)
-    const total_imminent = clients.reduce((s, c) => s + c.total_a_verser_maintenant, 0)
+    const totalImminent = clients.reduce((s, c) => s + c.total_a_verser_maintenant, 0)
 
     return {
       note: "C'est Boyah qui verse l'argent AUX clients (propriétaires confiant leur véhicule). " +
             "Fenêtre de paiement : 5-10 du mois suivant l'exploitation. " +
-            "Jamais de versement DES clients VERS Boyah.",
-      nb_clients:               clientsRaw?.length || 0,
-      nb_veh_sous_gestion:      vehsGestion?.length || 0,
+            "Jamais de versement DES clients VERS Boyah. " +
+            "Chiffres issus de la source consolidée unique (identiques au Cockpit) : ne pas recalculer.",
+      nb_clients:               clientsCountRes.count ?? clients.length,
+      nb_veh_sous_gestion:      vehCountRes.count ?? clients.reduce((s, c) => s + c.nb_vehicules, 0),
       total_engagement_mensuel: clients.reduce((s, c) => s + c.montant_mensuel_total, 0),
-      total_retards_cumules:    Math.round(total_retards),
-      total_a_verser_cette_periode: Math.round(total_imminent),
+      total_retards_cumules:    ledger.arriere_total,       // == arriere_cumule du Cockpit
+      total_a_verser_cette_periode: Math.round(totalImminent),
+      fenetre:                  ledger.fenetre,
       clients,
     }
   }
@@ -917,7 +846,7 @@ function buildUserContent(intent: IntentType, message: string, context: Record<s
       return `[RAPPORT DIRECT — aucune introduction]\n\n📊 Rapport Boyah Group — ${context.date}\n\nInclus obligatoirement :\n1. Résumé exécutif (état vs hier + tendance)\n2. KPIs clés avec variation mois/mois\n3. Points d'attention du jour (max 3)\n4. 1 action concrète prioritaire\n5. Météo business (🟢 bien / 🟡 attention / 🔴 critique)\n\nDONNÉES :\n${ctxStr}${web}`
 
     case "alerts":
-      return `[ALERTES DIRECTES — pas d'introduction]\n\n🔍 Anomalies critiques uniquement. Seuils :\n- CA aujourd'hui < 70% de la moyenne des 7 derniers jours → alerte\n- Taux annulation Boyah Transport > 30% → alerte\n- Marge < 20% → alerte\n- Profit négatif → critique\n- Versements AUX clients en retard (Boyah doit au propriétaire, pas l'inverse) → 🔴 critique\n- Fenêtre 5-10 du mois : versements clients à faire cette semaine → 🟡 rappel\n\nSi aucune anomalie → réponds exactement "✅ RAS — aucune anomalie détectée."\nSinon → liste les alertes avec niveau (🟡 / 🔴) et action immédiate.\n\nDONNÉES :\n${ctxStr}`
+      return `[ALERTES DIRECTES — pas d'introduction]\n\n🔍 Anomalies critiques uniquement. Seuils :\n- CA aujourd'hui < 70% de la moyenne des 7 derniers jours → alerte\n- Taux annulation Boyah Transport > 30% → alerte\n- Marge < 20% → alerte\n- Profit négatif → critique\n- Versements AUX clients en retard (Boyah doit au propriétaire, pas l'inverse) → 🔴 critique : utilise clients_sous_gestion.total_retards_cumules / clients_avec_retard (source consolidée, ne recalcule pas)\n- Fenêtre 5-10 du mois : versements clients à faire cette semaine → 🟡 rappel : utilise total_a_verser_cette_periode\n\nSi aucune anomalie → réponds exactement "✅ RAS — aucune anomalie détectée."\nSinon → liste les alertes avec niveau (🟡 / 🔴) et action immédiate.\n\nDONNÉES :\n${ctxStr}`
 
     case "market_research":
       return `[ANALYSE DIRECTE — commence immédiatement]\n\n🌍 Veille marché VTC Abidjan pour Boyah Group.\n\nAnalyse :\n1. Tendances marché VTC Côte d'Ivoire (Abidjan) — utilise les données web\n2. Mouvements concurrents (Yango, InDriver, Bolt) — positionnement actuel\n3. Opportunités concrètes pour Boyah Group vu nos données actuelles\n4. Menaces et risques\n5. 2 recommandations stratégiques actionnables\n\nDONNÉES ENTREPRISE :\n${ctxStr}${web}`
@@ -932,7 +861,7 @@ function buildUserContent(intent: IntentType, message: string, context: Record<s
       return `${message}\n\n🚗 DONNÉES VÉHICULES :\n${ctxStr}`
 
     case "client_query":
-      return `${message}\n\n🤝 DONNÉES CLIENTS (véhicules sous gestion) :\n${ctxStr}\n\nRappel direction de l'argent : C'EST BOYAH QUI VERSE AUX CLIENTS (le client est le propriétaire du véhicule, Boyah l'exploite et lui reverse sa part). Ne jamais dire "le client a versé" ou "le client doit".\n\nLexique : "net client" = ce que Boyah doit au client ce mois = montant mensuel − max(0, dépenses − 50 000 FCFA) ; "charge Boyah" = min(dépenses, 50 000 FCFA). Fenêtre de paiement : 5-10 du mois suivant. Statuts : deja_verse / a_verser / en_retard / pas_encore_du / en_cours / futur.`
+      return `${message}\n\n🤝 DONNÉES CLIENTS (véhicules sous gestion) :\n${ctxStr}\n\nRappel direction de l'argent : C'EST BOYAH QUI VERSE AUX CLIENTS (le client est le propriétaire du véhicule, Boyah l'exploite et lui reverse sa part). Ne jamais dire "le client a versé" ou "le client doit".\n\nLexique : "net client" = ce que Boyah doit au client ce mois = montant mensuel − max(0, dépenses − 50 000 FCFA) ; "charge Boyah" = min(dépenses, 50 000 FCFA). Fenêtre de paiement : 5-10 du mois suivant. Statuts : deja_verse / a_verser / en_retard / a_venir / en_cours / futur.\n\nSource consolidée UNIQUE (identique au Cockpit) : cite total_retards_cumules, total_a_rattraper et l'historique tels quels, ne recalcule pas l'arriéré. L'absence d'un mois dans les retards ≠ "rien à verser" (il peut être a_venir / a_verser / en_cours).`
 
     case "operational":
       return `${message}\n\n🔄 DONNÉES BOYAH TRANSPORT (Yango) :\n${ctxStr}`

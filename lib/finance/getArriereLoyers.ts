@@ -28,11 +28,19 @@
  *   Chargement en masse sur la fenêtre + agrégation en mémoire. ~6 requêtes
  *   (hors pagination), indépendamment du nombre de mois — modèle calqué sur
  *   lib/clients/calculBeneficeCumule. Compatible avec le refresh 60s du Cockpit.
+ *
+ * SOURCE UNIQUE (Lot harmonisation BoyahBot 01/06/2026) :
+ *   Le calcul interne (buildLedger) produit le LEDGER COMPLET par client : pour
+ *   chaque mois de la fenêtre (depuis created_at), le dû / versé / reliquat /
+ *   état / activité. Deux exports en dérivent SANS recalcul divergent :
+ *     - getArriereLoyers()        : vue Cockpit (uniquement les mois en_retard).
+ *     - getLedgerLoyersByClient() : ledger complet (consommé par BoyahBot).
+ *   Les deux donnent donc EXACTEMENT le même arriéré (zéro double source).
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { calculLoyerNet } from "@/lib/clients/calculLoyerNet"
-import { getLoyerStatus } from "@/lib/finance/loyerEcheance"
+import { getLoyerStatus, fenetrePaiement, type LoyerEtat } from "@/lib/finance/loyerEcheance"
 
 const PAGE = 1000
 
@@ -57,6 +65,37 @@ export interface ArriereLoyers {
   nb_clients_concernes: number
 }
 
+// ── Ledger complet (source unique, consommé par BoyahBot) ───────────────────
+export interface LedgerMois {
+  mois:     string      // 'YYYY-MM' — période du loyer (M)
+  du:       number      // Σ loyer net dû des véhicules actifs ce mois
+  verse:    number      // Σ versements_clients de ce mois (période = mois)
+  reliquat: number      // max(0, du − verse)
+  etat:     LoyerEtat   // état d'échéance (deja_verse si soldé ou rien à verser)
+  actif:    boolean     // au moins un véhicule du client exploité ce mois
+  // Fenêtre de paiement EXACTE (décalage M+1) : le loyer du mois M se verse
+  // entre le 5 et le 10 du mois M+1. Dates 'YYYY-MM-DD' prêtes à citer — l'agent
+  // ne doit JAMAIS recalculer cette date lui-même (il se trompait de mois).
+  fenetre_paiement: { du: string; au: string }
+}
+
+export interface LedgerClient {
+  id_client:             number
+  client:                string
+  telephone:             string | null
+  nb_vehicules:          number
+  immatriculations:      string[]
+  montant_mensuel_total: number
+  mois:                  LedgerMois[]   // tous les mois de la fenêtre depuis created_at (ancien→récent)
+  total_reliquat:        number         // Σ reliquat des mois en_retard (== part client de l'arriéré)
+}
+
+export interface LedgerLoyers {
+  clients:       LedgerClient[]
+  fenetre:       { du: string; au: string }
+  arriere_total: number                 // Σ total_reliquat (== getArriereLoyers().arriere_total)
+}
+
 // ── Lignes BD (typage minimal) ─────────────────────────────────────────────
 type VehiculeRow = {
   id_vehicule: number
@@ -64,7 +103,7 @@ type VehiculeRow = {
   id_client: number | null
   montant_mensuel_client: number | null
 }
-type ClientRow = { id: number; nom: string | null; created_at: string | null }
+type ClientRow = { id: number; nom: string | null; telephone: string | null; created_at: string | null }
 type AttributionRow = { id_vehicule: number | null; jour_exploitation: string | null; montant_attribue: number | null }
 type OperationRow = { vehicule_id: number | null; date_operation: string | null; montant: number | null }
 type VersementRow = { id_client: number | string; mois: string; montant: number | null }
@@ -83,29 +122,25 @@ function moisListe(today: Date, count: number): string[] {
 }
 
 /**
- * Calcule l'arriéré cumulé des loyers Clients à la date `today`.
+ * Construit le LEDGER COMPLET des loyers Clients : pour chaque client (ayant au
+ * moins un véhicule sous gestion) et chaque mois de la fenêtre depuis son
+ * created_at, calcule dû / versé / reliquat / état / activité.
  *
- * @param supabase     Client Supabase (service role : versements_clients a une RLS).
- * @param today        Date de consultation. Défaut : maintenant.
- * @param moisFenetre  Profondeur de la fenêtre glissante (mois). Défaut 12.
+ * C'est le cœur de calcul unique : getArriereLoyers et getLedgerLoyersByClient
+ * en dérivent par simple filtrage, sans recalcul.
  */
-export async function getArriereLoyers(
+async function buildLedger(
   supabase: SupabaseClient,
-  today: Date = new Date(),
-  moisFenetre = 12,
-): Promise<ArriereLoyers> {
+  today: Date,
+  moisFenetre: number,
+): Promise<{ clients: LedgerClient[]; mois: string[] }> {
   const mois = moisListe(today, moisFenetre)
   const dateFrom = `${mois[0]}-01`
   const [ly, lm] = mois[mois.length - 1].split("-").map(Number)
   const dateToExclusive =
     lm === 12 ? `${ly + 1}-01-01` : `${ly}-${String(lm + 1).padStart(2, "0")}-01`
 
-  const vide: ArriereLoyers = {
-    arriere_total: 0,
-    detail_par_client: [],
-    fenetre: { du: mois[0], au: mois[mois.length - 1] },
-    nb_clients_concernes: 0,
-  }
+  const vide = { clients: [] as LedgerClient[], mois }
 
   // ── 1. Véhicules sous gestion ─────────────────────────────────────────────
   const { data: vehRaw, error: vehErr } = await supabase
@@ -125,18 +160,19 @@ export async function getArriereLoyers(
   ]
   if (clientIds.length === 0) return vide
 
-  // ── 2. Clients (nom + created_at pour le plafonnement) ────────────────────
+  // ── 2. Clients (nom + téléphone + created_at pour le plafonnement) ────────
   const { data: cliRaw, error: cliErr } = await supabase
     .from("clients")
-    .select("id, nom, created_at")
+    .select("id, nom, telephone, created_at")
     .in("id", clientIds)
   if (cliErr) throw new Error(`Lecture clients : ${cliErr.message}`)
-  const clientInfo = new Map<number, { nom: string; createdY: number; createdM: number }>()
+  const clientInfo = new Map<number, { nom: string; telephone: string | null; createdY: number; createdM: number }>()
   for (const c of (cliRaw ?? []) as ClientRow[]) {
     const created = c.created_at ? new Date(c.created_at) : null
     clientInfo.set(Number(c.id), {
-      nom:      c.nom ?? "?",
-      // 0-indexé. Si pas de date → 0/-Infinity → aucun plafonnement (tout permis).
+      nom:       c.nom ?? "?",
+      telephone: c.telephone ?? null,
+      // 0-indexé. Si pas de date → 0 → aucun plafonnement (tout permis).
       createdY: created ? created.getUTCFullYear() : 0,
       createdM: created ? created.getUTCMonth() : 0,
     })
@@ -218,32 +254,30 @@ export async function getArriereLoyers(
     }
   }
 
-  // ── 7. Agrégation : dû par (client, mois) → reliquat → filtre "en_retard" ─
-  const detail: ArriereClientDetail[] = []
+  // ── 7. Agrégation : ledger complet par (client, mois) ─────────────────────
+  const clients: LedgerClient[] = []
 
   for (const cid of clientIds) {
     const info = clientInfo.get(cid)
     if (!info) continue
     const vehsClient = vehicules.filter(v => Number(v.id_client) === cid && v.id_vehicule != null)
-    const moisEnRetard: ArriereMois[] = []
+    const ledgerMois: LedgerMois[] = []
 
     for (const ym of mois) {
       const [y, m] = ym.split("-").map(Number) // m 1-indexé
-      // Plafonnement à l'entrée du Client (pas d'arriéré avant created_at).
+      // Plafonnement à l'entrée du Client (pas de ligne avant created_at).
       if (y < info.createdY || (y === info.createdY && (m - 1) < info.createdM)) continue
-
-      // État d'échéance : on ne retient que les mois réellement en retard.
-      // (solde=false : on évalue l'échéance pure, le reliquat décide ensuite.)
-      if (getLoyerStatus(ym, today, false) !== "en_retard") continue
 
       // Dû = Σ loyer net des véhicules ACTIFS ce mois (recette OU dépense > 0),
       // même règle que getMargeConsolidee bloc2 (véhicule en panne = pas de dû).
       let du = 0
+      let actif = false
       for (const v of vehsClient) {
         const idVeh = Number(v.id_vehicule)
         const recettes = recettesByVehMois.get(`${idVeh}_${ym}`) ?? 0
         const depenses = depensesByVehMois.get(`${idVeh}_${ym}`) ?? 0
         if (recettes === 0 && depenses === 0) continue
+        actif = true
         // depenses vient d'operations filtré categorie.type='depense' :
         // pas de reversement dedans → excludeReversements=false (pas de re-filtre).
         const { loyerNet } = calculLoyerNet(
@@ -254,27 +288,78 @@ export async function getArriereLoyers(
         du += loyerNet
       }
 
-      if (du <= 0) continue
       const verse = versesByClientMois.get(`${cid}_${ym}`) ?? 0
       const reliquat = Math.max(0, du - verse)
-      if (reliquat <= 0) continue
+      // Soldé si rien à verser (du<=0) ou versement couvrant le dû. Sinon, l'état
+      // d'échéance pure (getLoyerStatus solde=false) décide : en_retard si après
+      // le 10 de M+1. Identique à la règle du Cockpit (/api/cockpit/finances).
+      const solde = du <= 0 || verse >= du
+      const etat = getLoyerStatus(ym, today, solde)
 
-      moisEnRetard.push({
+      // Fenêtre de paiement exacte (5 → 10 de M+1), en chaînes 'YYYY-MM-DD'.
+      const fen = fenetrePaiement(ym)
+      const fenetre_paiement = {
+        du: fen.debut.toISOString().slice(0, 10),
+        au: fen.fin.toISOString().slice(0, 10),
+      }
+
+      ledgerMois.push({
         mois: ym,
         du: Math.round(du),
         verse: Math.round(verse),
         reliquat: Math.round(reliquat),
+        etat,
+        actif,
+        fenetre_paiement,
       })
     }
 
+    const totalReliquat = ledgerMois
+      .filter(mm => mm.etat === "en_retard")
+      .reduce((s, mm) => s + mm.reliquat, 0)
+
+    clients.push({
+      id_client:             cid,
+      client:                info.nom,
+      telephone:             info.telephone,
+      nb_vehicules:          vehsClient.length,
+      immatriculations:      vehsClient.map(v => v.immatriculation ?? ""),
+      montant_mensuel_total: vehsClient.reduce((s, v) => s + Number(v.montant_mensuel_client ?? 0), 0),
+      mois:                  ledgerMois,
+      total_reliquat:        Math.round(totalReliquat),
+    })
+  }
+
+  return { clients, mois }
+}
+
+/**
+ * Calcule l'arriéré cumulé des loyers Clients à la date `today` (vue Cockpit).
+ * Ne retient que les mois en état "en_retard" avec reliquat > 0.
+ *
+ * @param supabase     Client Supabase (service role : versements_clients a une RLS).
+ * @param today        Date de consultation. Défaut : maintenant.
+ * @param moisFenetre  Profondeur de la fenêtre glissante (mois). Défaut 12.
+ */
+export async function getArriereLoyers(
+  supabase: SupabaseClient,
+  today: Date = new Date(),
+  moisFenetre = 12,
+): Promise<ArriereLoyers> {
+  const { clients, mois } = await buildLedger(supabase, today, moisFenetre)
+
+  const detail: ArriereClientDetail[] = []
+  for (const c of clients) {
+    const moisEnRetard: ArriereMois[] = c.mois
+      .filter(mm => mm.etat === "en_retard" && mm.reliquat > 0)
+      .map(mm => ({ mois: mm.mois, du: mm.du, verse: mm.verse, reliquat: mm.reliquat }))
     if (moisEnRetard.length === 0) continue
     moisEnRetard.sort((a, b) => a.mois.localeCompare(b.mois))
-    const totalReliquat = moisEnRetard.reduce((s, r) => s + r.reliquat, 0)
     detail.push({
-      id_client: cid,
-      client: info.nom,
+      id_client:      c.id_client,
+      client:         c.client,
       mois_en_retard: moisEnRetard,
-      total_reliquat: totalReliquat,
+      total_reliquat: moisEnRetard.reduce((s, r) => s + r.reliquat, 0),
     })
   }
 
@@ -286,5 +371,29 @@ export async function getArriereLoyers(
     detail_par_client: detail,
     fenetre: { du: mois[0], au: mois[mois.length - 1] },
     nb_clients_concernes: detail.length,
+  }
+}
+
+/**
+ * Renvoie le LEDGER COMPLET des loyers Clients (tous les mois de la fenêtre,
+ * pas seulement les retards), consommé par BoyahBot pour donner exactement les
+ * mêmes chiffres que le Cockpit. `arriere_total` est identique à celui de
+ * getArriereLoyers (même calcul interne, simple filtrage différent).
+ *
+ * @param supabase     Client Supabase (service role : versements_clients a une RLS).
+ * @param today        Date de consultation. Défaut : maintenant.
+ * @param moisFenetre  Profondeur de la fenêtre glissante (mois). Défaut 12.
+ */
+export async function getLedgerLoyersByClient(
+  supabase: SupabaseClient,
+  today: Date = new Date(),
+  moisFenetre = 12,
+): Promise<LedgerLoyers> {
+  const { clients, mois } = await buildLedger(supabase, today, moisFenetre)
+  const arriereTotal = clients.reduce((s, c) => s + c.total_reliquat, 0)
+  return {
+    clients,
+    fenetre: { du: mois[0], au: mois[mois.length - 1] },
+    arriere_total: arriereTotal,
   }
 }
