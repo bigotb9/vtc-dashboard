@@ -21,6 +21,17 @@ export type Permission =
   // Flotte
   | "view_chauffeurs" | "create_chauffeur" | "edit_chauffeur" | "delete_chauffeur"
   | "view_vehicules"  | "create_vehicle"   | "edit_vehicle"   | "delete_vehicle"
+  // view_fleet : listes consolidees vehicules + chauffeurs (selects "Liens metier"
+  //   du formulaire d'operation, /api/vehicules/list + /api/chauffeurs/list).
+  // manage_maintenance : fiches d'entretien vehicule (/api/entretiens).
+  // Ajoutees 02/06/2026 : exigees par le code (Lot Z) mais absentes du type +
+  //   de l'UI /parametres -> invisibles pour le directeur (cf. correctif perms fantomes).
+  | "view_fleet"      | "manage_maintenance"
+  // manage_drivers : affectations chauffeur <-> vehicule (/api/affectations).
+  // manage_tasks   : taches de suivi vehicule (/api/taches).
+  // Ajoutees 02/06/2026 : memes cles fantomes Lot Z (absentes type + UI), desormais
+  //   pilotables dans /parametres. Valeurs deja semees en base (admin/dispatcher).
+  | "manage_drivers"  | "manage_tasks"
   // Clients (sous-gestion, asset management) - permissions granulaires depuis le 27/05/2026
   // (ex-manage_clients splitee en 4 verbes : voir / creer / modifier / supprimer)
   | "view_clients"    | "create_client"    | "edit_client"    | "delete_client"

@@ -36,10 +36,15 @@ const ALL_ACTIONS: { key: string; label: string; category: string }[] = [
   { key: "create_vehicle",       label: "Créer un véhicule",                  category: "Flotte" },
   { key: "edit_vehicle",         label: "Modifier un véhicule",               category: "Flotte" },
   { key: "delete_vehicle",       label: "Supprimer un véhicule",              category: "Flotte" },
+  { key: "view_fleet",           label: "Voir la flotte (listes véhicules / chauffeurs)", category: "Flotte" },
+  { key: "manage_maintenance",   label: "Gérer les entretiens (fiches d'entretien véhicule)", category: "Flotte" },
+  { key: "manage_drivers",       label: "Gérer les affectations (chauffeur ↔ véhicule)", category: "Flotte" },
   { key: "view_clients",         label: "Voir les clients",                   category: "Flotte" },
   { key: "create_client",        label: "Créer un client",                    category: "Flotte" },
   { key: "edit_client",          label: "Modifier un client (versements, documents)", category: "Flotte" },
   { key: "delete_client",        label: "Sortir / désactiver un client",      category: "Flotte" },
+  // Suivi
+  { key: "manage_tasks",         label: "Gérer les tâches de suivi (véhicules)", category: "Suivi" },
   // Boyah Transport
   { key: "view_boyah_dashboard", label: "Voir le dashboard Boyah Transport",  category: "Boyah Transport" },
   { key: "view_orders",          label: "Voir les commandes Yango",           category: "Boyah Transport" },
