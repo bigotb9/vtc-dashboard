@@ -5,38 +5,27 @@ import { requirePermission } from "@/lib/requirePermission"
 // Auth Lot Z (26/05/2026 audit) : requirePermission("view_dashboard") — la
 // route etait ouverte (finding 2.4), exposant l'identite + telephones des
 // chauffeurs Yango.
+//
+// Perf (02/06/2026, meme fix que dashboard-stats) : l'agregation per-chauffeur
+// est entierement deportee dans Postgres via la fonction RPC boyah_driver_stats
+// (migration 20260602160000). La route ne charge plus les ~64 800 lignes de
+// commandes_yango en memoire (ancien code : ~65 requetes paginees + agregation
+// JS -> >30s). On garde l'appel Yango Drivers (noms/tel/vehicule/plaque +
+// chauffeurs a 0 course) et on merge avec le resultat SQL. Fenetres GLISSANTES
+// (7j/30j) conservees (libelles UI "7 jours" / "30 jours"). Format de sortie
+// strictement identique a l'ancienne version.
 
 export const maxDuration = 30
 
-type OrderRow = {
-  status:     string
-  created_at: string
-  raw: {
-    driver_profile?: { id?: string; name?: string }
-    price?:          number | string
-  }
-}
-
-// Récupère TOUTES les commandes avec pagination (contourne la limite Supabase de 1000 lignes)
-async function fetchAllOrders(): Promise<OrderRow[]> {
-  const all: OrderRow[] = []
-  const PAGE = 1000
-  let from   = 0
-
-  while (true) {
-    const { data, error } = await supabase
-      .from("commandes_yango")
-      .select("status, created_at, raw")
-      .order("created_at", { ascending: false })
-      .range(from, from + PAGE - 1)
-
-    if (error || !data || data.length === 0) break
-    all.push(...(data as OrderRow[]))
-    if (data.length < PAGE) break
-    from += PAGE
-  }
-
-  return all
+type DriverStatRow = {
+  driver_id:     string
+  driver_name:   string
+  total_courses: number
+  total_revenue: number
+  commission:    number
+  courses_week:  number
+  courses_mois:  number
+  last_activity: string | null
 }
 
 export async function GET(req: NextRequest) {
@@ -44,14 +33,17 @@ export async function GET(req: NextRequest) {
   if (!auth.ok) return auth.response
 
   try {
-    const now      = new Date()
-    const weekAgo  = new Date(now.getTime() - 7  * 86400000)
-    const monthAgo = new Date(now.getTime() - 30 * 86400000)
+    const COMMISSION = Number(process.env.YANGO_COMMISSION_RATE || 0.025)
 
-    // 1. Tous les orders depuis Supabase (colonnes top-level = types garantis)
-    const orders = await fetchAllOrders()
+    // 1. Agregation per-chauffeur entierement en SQL (remplace fetchAllOrders + JS)
+    const { data: sqlStats, error: rpcError } = await supabase.rpc("boyah_driver_stats", {
+      p_commission: COMMISSION,
+    })
+    if (rpcError) throw rpcError
+    const rows = (sqlStats ?? []) as DriverStatRow[]
 
-    // 2. Profils drivers depuis Yango API
+    // 2. Profils drivers depuis Yango API (noms / telephones / vehicule / plaque
+    //    + chauffeurs enregistres mais sans aucune course)
     const driversUrl = process.env.YANGO_DRIVERS_URL
     const driversKey = process.env.YANGO_DRIVERS_API_KEY
     const clid       = process.env.CLID
@@ -98,72 +90,37 @@ export async function GET(req: NextRequest) {
       })
     }
 
-    // 3. Agréger par driver_profile.id (clé fiable dans le raw Yango)
-    type Bucket = {
-      driverId:  string
-      name:      string
-      completed: { created_at: string; price: number }[]
-      allCount:  number
-    }
-    const buckets = new Map<string, Bucket>()
-
-    for (const row of orders) {
-      const dp  = row.raw?.driver_profile
-      const did = dp?.id?.trim() || ""
-      if (!did) continue
-
-      if (!buckets.has(did)) {
-        buckets.set(did, { driverId: did, name: dp?.name || "", completed: [], allCount: 0 })
-      }
-      const b = buckets.get(did)!
-      b.allCount++
-      if (row.status === "complete") {
-        b.completed.push({
-          created_at: row.created_at,
-          price:      Number(row.raw?.price || 0),
-        })
-      }
-    }
-
-    const COMMISSION = 0.025
-
-    // 4. Construire stats finales
+    // 3. Construire les stats finales depuis le resultat SQL + merge profil Yango
     const stats = []
     const seenIds = new Set<string>()
 
-    for (const b of buckets.values()) {
-      seenIds.add(b.driverId)
-      const profile = profileMap.get(b.driverId)
-
-      const totalRevenue = b.completed.reduce((s, o) => s + o.price, 0)
-      const coursesWeek  = b.completed.filter(o => o.created_at && new Date(o.created_at) >= weekAgo).length
-      const coursesMois  = b.completed.filter(o => o.created_at && new Date(o.created_at) >= monthAgo).length
-      const sorted       = [...b.completed].sort((a, c) => new Date(c.created_at).getTime() - new Date(a.created_at).getTime())
-      const lastActivity = sorted[0]?.created_at || null
+    for (const r of rows) {
+      seenIds.add(r.driver_id)
+      const profile = profileMap.get(r.driver_id)
 
       const status =
-        coursesWeek > 0 ? "actif" :
-        coursesMois > 0 ? "risque" : "inactif"
+        r.courses_week > 0 ? "actif" :
+        r.courses_mois > 0 ? "risque" : "inactif"
 
       stats.push({
-        id:           b.driverId,
-        nom:          profile?.nom          || b.name,
+        id:           r.driver_id,
+        nom:          profile?.nom          || r.driver_name,
         telephone:    profile?.telephone    || "",
         vehicle:      profile?.vehicle      || "",
         plaque:       profile?.plaque       || "",
         solde:        profile?.solde        || "0",
         statut:       profile?.statut       || "",
-        totalCourses: b.completed.length,
-        totalRevenue: Math.round(totalRevenue),
-        commission:   Math.round(totalRevenue * COMMISSION),
-        lastActivity,
+        totalCourses: r.total_courses,
+        totalRevenue: r.total_revenue,
+        commission:   r.commission,
+        lastActivity: r.last_activity,
         status,
-        coursesWeek,
-        coursesMois,
+        coursesWeek:  r.courses_week,
+        coursesMois:  r.courses_mois,
       })
     }
 
-    // Drivers enregistrés dans Yango mais sans aucune commande
+    // Drivers enregistres dans Yango mais sans aucune commande
     for (const [id, profile] of profileMap.entries()) {
       if (!seenIds.has(id)) {
         stats.push({
