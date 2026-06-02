@@ -126,6 +126,7 @@ BOYAH TRANSPORT (partenariat Yango) :
 - "CA prestataires" = total des courses des prestataires (ce n'est PAS le revenu de Boyah Transport — juste le volume)
 - "taux de complétion" = courses complétées / total commandes × 100
 - "panier moyen" = CA prestataires / nombre de courses complétées
+- COMPARAISON MENSUELLE : ca_prestataires_ce_mois est le mois courant PARTIEL (1er → aujourd'hui), ca_prestataires_mois_prec est le mois précédent COMPLET. En début de mois, ne t'alarme PAS d'une baisse apparente (evolution_mois_pct fortement négatif) : c'est mécanique (quelques jours vs un mois plein). Précise-le toujours quand tu compares les deux mois.
 
 RÈGLES DE LECTURE DES DONNÉES :
 - "Montant net" (avec espace, majuscule M) = colonne du revenu dans recettes_wave
@@ -181,6 +182,27 @@ function classifyIntent(text: string): IntentType {
   if (t.startsWith("/chauffeur")) return "driver_query"
   if (t.startsWith("/vehicule")) return "vehicle_query"
 
+  // ── Désambiguïsation Yango (fix routage 02/06/2026) ─────────────────────────
+  // "Yango" est AMBIGU : plateforme partenaire (nos prestataires Boyah Transport)
+  // ET concurrent marché. Avant cette garde, "CA Yango" tombait en financial_query
+  // (le terme "ca " du filtre financier matchait avant "yango"/"prestataire" du
+  // bloc operational) -> fetchTransport jamais appelé -> BoyahBot repondait avec
+  // les donnees Wave au lieu de Yango. Comme financial_query ne charge AUCUNE
+  // donnee Yango (bloc3 non implemente), toute question Yango doit aller en
+  // operational — SAUF si un signal concurrent FORT indique une question de veille.
+
+  // 1) Garde marche-concurrent FORT (teste AVANT l'override Yango) :
+  //    seulement des signaux non ambigus de veille concurrentielle.
+  const strongMarketTerms = ["concurrent", "concurrence", "indriver", "bolt",
+    "competiteur", "part de marche", "positionnement", "reglementation", "veille"]
+  if (strongMarketTerms.some(w => t.includes(w))) return "market_research"
+
+  // 2) Override Yango-operationnel : termes "coeur" designant nos operations Yango.
+  //    Route operational AVANT le filtre financier (qui n'a pas la donnee Yango).
+  const yangoCoreTerms = ["yango", "prestataire", "prestataires", "boyah transport",
+    "commission yango", "courses yango", "chauffeur yango", "chauffeurs yango"]
+  if (yangoCoreTerms.some(w => t.includes(w))) return "operational"
+
   // Détection financière (priorité haute — souvent présente dans d'autres questions)
   const financialTerms = ["ca ", "chiffre d'affaire", "revenu", "recette", "wave", "profit",
     "marge", "depense", "charge", "fcfa", "bilan financier", "resultat financier",
@@ -233,7 +255,6 @@ function classifyIntent(text: string): IntentType {
 async function fetchContext(intent: IntentType) {
   const today       = new Date().toISOString().slice(0, 10)
   const monthPrefix = new Date().toISOString().slice(0, 7)
-  const weekAgo     = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
   const prevMonth   = new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString().slice(0, 7)
 
   // Mémoire toujours chargée
@@ -695,38 +716,47 @@ async function fetchContext(intent: IntentType) {
   }
 
   // ── Données Boyah Transport (Yango)
+  // Agrégation 100% SQL via RPC boyah_dashboard_stats (migrations 20260602120000
+  // + fenêtres calendaires 20260602140000). Remplace l'ancien chargement des
+  // 5000 courses `raw` + reduce JS qui (a) plafonnait BoyahBot aux 5000 commandes
+  // les plus RÉCENTES -> totaux Yango sous-comptés (réel ~64 800 courses), et
+  // (b) était lent. ⚠️ Sémantique des fenêtres = CALENDAIRE (semaine = lundi ->
+  // aujourd'hui inclus, mois = 1er -> aujourd'hui inclus), alignée sur le
+  // dashboard Boyah Transport. Comparaison mensuelle (prevMonth/trendMonthPct)
+  // ajoutée par la migration 20260602180000 -> ca_prestataires_mois_prec /
+  // evolution_mois_pct ré-exposés ici. ⚠️ mois courant PARTIEL vs mois précédent
+  // COMPLET (cf. note ci-dessous, idem trendWeekPct).
   const fetchTransport = async () => {
-    const PAGE = 1000
-    let all: Record<string, string>[] = []
-    let from = 0
-    while (all.length < 5000) {
-      const { data } = await sb.from("commandes_yango").select("raw").order("created_at", { ascending: false }).range(from, from + PAGE - 1)
-      if (!data || data.length === 0) break
-      all.push(...data.map(r => r.raw as Record<string, string>))
-      if (data.length < PAGE) break
-      from += PAGE
+    const COMMISSION = Number(process.env.YANGO_COMMISSION_RATE || 0.025)
+    const { data, error } = await sb.rpc("boyah_dashboard_stats", { p_commission: COMMISSION })
+    if (error || !data) {
+      return { note: "Données Boyah Transport indisponibles (erreur agrégation SQL).", erreur: error?.message ?? "no data" }
     }
-    const complete  = all.filter(o => o?.status === "complete")
-    const revTotal  = complete.reduce((s, o) => s + parseFloat(o.price || "0"), 0)
-    const revMois   = complete.filter(o => o.created_at?.startsWith(monthPrefix)).reduce((s, o) => s + parseFloat(o.price || "0"), 0)
-    const revSemaine= complete.filter(o => (o.created_at?.slice(0, 10) || "") >= weekAgo).reduce((s, o) => s + parseFloat(o.price || "0"), 0)
-    const revAuj    = complete.filter(o => o.created_at?.startsWith(today)).reduce((s, o) => s + parseFloat(o.price || "0"), 0)
-    const revPrevMois = complete.filter(o => o.created_at?.startsWith(prevMonth)).reduce((s, o) => s + parseFloat(o.price || "0"), 0)
-
+    type DashStats = {
+      totals:     { orders: number; completed: number; cancelled: number; completionRate: number; avgOrderValue: number }
+      revenue:    { today: number; week: number; month: number; total: number; prevWeek: number; trendWeekPct: number | null; prevMonth: number; trendMonthPct: number | null }
+      commission: { today: number; week: number; month: number; total: number; prevMonth: number }
+    }
+    const s = data as DashStats
     return {
-      note: "Entité distincte. Revenus = commissions 2.5% sur courses prestataires.",
-      total_commandes:             all.length,
-      courses_completees:          complete.length,
-      taux_completion_pct:         all.length > 0 ? (complete.length / all.length * 100).toFixed(1) + "%" : "0%",
-      ca_prestataires_total:       revTotal,
-      ca_prestataires_ce_mois:     revMois,
-      ca_prestataires_semaine:     revSemaine,
-      ca_prestataires_aujourd_hui: revAuj,
-      ca_prestataires_mois_prec:   revPrevMois,
-      evolution_mois_pct:          revPrevMois > 0 ? (((revMois - revPrevMois) / revPrevMois) * 100).toFixed(1) + "%" : "N/A",
-      commission_boyah_ce_mois:    Math.round(revMois * 0.025),
-      commission_boyah_total:      Math.round(revTotal * 0.025),
-      panier_moyen_course:         complete.length > 0 ? Math.round(revTotal / complete.length) + " FCFA" : "N/A",
+      note: `Entité distincte. Revenus Boyah = commissions ${(COMMISSION * 100).toFixed(1)}% sur courses prestataires. Fenêtres CALENDAIRES (semaine = lundi->auj., mois = 1er->auj.). ⚠️ ca_prestataires_ce_mois est PARTIEL en début de mois (1er->auj.) vs ca_prestataires_mois_prec = mois précédent COMPLET : une baisse apparente début de mois est normale.`,
+      total_commandes:               s.totals.orders,
+      courses_completees:            s.totals.completed,
+      courses_annulees:              s.totals.cancelled,
+      taux_completion_pct:           s.totals.orders > 0 ? (s.totals.completed / s.totals.orders * 100).toFixed(1) + "%" : "0%",
+      ca_prestataires_total:         s.revenue.total,
+      ca_prestataires_ce_mois:       s.revenue.month,
+      ca_prestataires_mois_prec:     s.revenue.prevMonth,
+      evolution_mois_pct:            s.revenue.trendMonthPct != null ? s.revenue.trendMonthPct + "%" : "N/A",
+      ca_prestataires_semaine:       s.revenue.week,
+      ca_prestataires_aujourd_hui:   s.revenue.today,
+      ca_prestataires_semaine_prec:  s.revenue.prevWeek,
+      evolution_semaine_pct:         s.revenue.trendWeekPct != null ? s.revenue.trendWeekPct + "%" : "N/A",
+      commission_boyah_ce_mois:      s.commission.month,
+      commission_boyah_mois_prec:    s.commission.prevMonth,
+      commission_boyah_semaine:      s.commission.week,
+      commission_boyah_total:        s.commission.total,
+      panier_moyen_course:           s.totals.avgOrderValue > 0 ? s.totals.avgOrderValue + " FCFA" : "N/A",
     }
   }
 
