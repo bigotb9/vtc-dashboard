@@ -46,21 +46,21 @@ export default function VersementModal({
     const load = async () => {
       try {
         const [resC, resB] = await Promise.all([
-          fetch("/api/compta/caisses?actif=true"),
-          fetch("/api/compta/comptes?actif=true"),
+          authFetch("/api/compta/caisses?actif=true"),
+          authFetch("/api/compta/comptes?actif=true"),
         ])
         const dataC = await resC.json().catch(() => ({}))
         const dataB = await resB.json().catch(() => ({}))
         const opts: CaisseOption[] = []
-        if (dataC.ok && Array.isArray(dataC.items)) {
-          for (const x of dataC.items) {
-            if (x.actif !== false) opts.push({ id: x.id, libelle: x.libelle, kind: "caisse" })
-          }
+        // Les routes /api/compta/* renvoient { data: [...], total, page, page_size }
+        // (helper comptaOkList) — pas de champ `ok`, liste sous `data` (pas `items`).
+        const itemsC = Array.isArray(dataC.data) ? dataC.data : []
+        const itemsB = Array.isArray(dataB.data) ? dataB.data : []
+        for (const x of itemsC) {
+          if (x.actif !== false) opts.push({ id: x.id, libelle: x.libelle, kind: "caisse" })
         }
-        if (dataB.ok && Array.isArray(dataB.items)) {
-          for (const x of dataB.items) {
-            if (x.actif !== false) opts.push({ id: x.id, libelle: x.libelle, kind: "compte" })
-          }
+        for (const x of itemsB) {
+          if (x.actif !== false) opts.push({ id: x.id, libelle: x.libelle, kind: "compte" })
         }
         setCaisses(opts)
         // Default : Wave Boyah

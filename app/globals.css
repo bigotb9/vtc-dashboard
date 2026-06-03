@@ -103,6 +103,27 @@ svg, img, canvas {
 }
 .scrollbar-none::-webkit-scrollbar { display: none; }
 
+/* ── Dropdowns natifs (<option> / <optgroup>) lisibles en dark ──
+   Les <option> natives n'héritent PAS des classes Tailwind du <select>
+   (rendu par l'OS) : en dark mode elles s'affichaient blanc-sur-blanc,
+   visibles seulement au survol. On force des couleurs OPAQUES — la
+   transparence (ex. bg-white/5) n'est pas supportée par le menu natif.
+   Une règle globale couvre TOUS les <select> de l'app d'un coup. */
+select option,
+select optgroup {
+  background-color: #ffffff;
+  color: #111827;
+}
+.dark select option,
+.dark select optgroup {
+  background-color: #111827;
+  color: #f3f4f6;
+}
+.dark select optgroup {
+  color: #9ca3af;
+  font-weight: 700;
+}
+
 /* ============================================================
    Écran 10 — Plan comptable : règles d'impression
    ============================================================ */
