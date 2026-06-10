@@ -1038,8 +1038,9 @@ export async function POST(req: NextRequest) {
     const maxTokens = maxTokensMap[intent] || 1024
 
     // ── Appel Claude Opus ─────────────────────────────────────────────────────
+    // Modèle pilotable via env (ANTHROPIC_MODEL) sans redéploiement de code.
     const claudeResponse = await anthropic.messages.create({
-      model:      "claude-opus-4-6",
+      model:      process.env.ANTHROPIC_MODEL || "claude-opus-4-8",
       max_tokens: maxTokens,
       system:     SYSTEM_PROMPT,
       messages:   [...cleanHistory, { role: "user", content: safeContent }],

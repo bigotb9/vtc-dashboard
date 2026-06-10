@@ -40,8 +40,9 @@ Le post doit :
 
 Retourne UNIQUEMENT le texte du post, sans introduction ni explication.`
 
+    // Fallback en cascade : var dédiée posts → var générale → défaut.
     const response = await anthropic.messages.create({
-      model:      "claude-opus-4-6",
+      model:      process.env.ANTHROPIC_MODEL_POSTS || process.env.ANTHROPIC_MODEL || "claude-opus-4-8",
       max_tokens: 600,
       messages:   [{ role: "user", content: prompt }],
     })

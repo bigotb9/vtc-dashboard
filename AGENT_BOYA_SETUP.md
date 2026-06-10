@@ -141,7 +141,7 @@ n8n (Workflow 01)
     ↓ fetch en parallèle
 Supabase (toutes les vues + commandes_yango + mémoire)
     ↓ contexte complet
-Claude claude-opus-4-6 (cerveau)
+Claude claude-opus-4-8 (cerveau — modèle pilotable via env ANTHROPIC_MODEL)
     ↓ réponse + mémoires extraites
 n8n → Telegram (réponse)
 Supabase (sauvegarde conversation + mémoire)
