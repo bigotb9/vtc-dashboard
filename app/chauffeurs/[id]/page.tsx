@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic'
 
-import { supabase } from "@/lib/supabaseClient"
+import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import Link from "next/link"
 import Image from "next/image"
 import {
@@ -81,7 +81,7 @@ export default async function ChauffeurPage({
   const { id } = await params
 
   /* ── données chauffeur ── */
-  const { data: chauffeur } = await supabase
+  const { data: chauffeur } = await supabaseAdmin
     .from("chauffeurs")
     .select("*")
     .eq("id_chauffeur", id)
@@ -97,14 +97,14 @@ export default async function ChauffeurPage({
   }
 
   /* ── CA classement ── */
-  const { data: classement } = await supabase
+  const { data: classement } = await supabaseAdmin
     .from("classement_chauffeurs")
     .select("*")
     .eq("nom", chauffeur.nom)
     .single()
 
   /* ── recettes via vue_recettes_vehicules (colonne "chauffeur" déjà réconciliée) ── */
-  const { data: recettesRaw } = await supabase
+  const { data: recettesRaw } = await supabaseAdmin
     .from("vue_recettes_vehicules")
     .select("*")
     .ilike("chauffeur", `%${chauffeur.nom}%`)
@@ -122,7 +122,7 @@ export default async function ChauffeurPage({
     .reduce((sum: number, r) => sum + (Number(r["Montant net"]) || 0), 0)
 
   /* ── classement global ── */
-  const { data: tousClassements } = await supabase
+  const { data: tousClassements } = await supabaseAdmin
     .from("classement_chauffeurs")
     .select("nom, ca")
     .order("ca", { ascending: false })

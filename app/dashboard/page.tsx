@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import Link from "next/link"
-import { supabase } from "@/lib/supabaseClient"
+import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import { PageHeader } from "@/components/PageHeader"
 import KpiCards from "@/components/KpiCards"
 import RecettesTable from "@/components/RecettesTable"
@@ -22,12 +22,12 @@ import SuiviVersementsWidget from "@/components/SuiviVersementsWidget"
 
 export default async function DashboardPage() {
 
-  const { data: recettes } = await supabase
+  const { data: recettes } = await supabaseAdmin
     .from("vue_recettes_vehicules")
     .select("*")
     .order("Horodatage", { ascending: false })
     .limit(20)
-  const { data: depenses } = await supabase.from("vue_depenses_categories").select("*")
+  const { data: depenses } = await supabaseAdmin.from("vue_depenses_categories").select("*")
 
   const today = new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
 

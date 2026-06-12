@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic'
 
-import { supabase } from "@/lib/supabaseClient"
+import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import ChauffeursTable from "@/components/ChauffeursTable"
 import ChauffeursChart from "@/components/ChauffeursChart"
 import TopChauffeurChart from "@/components/TopChauffeurChart"
@@ -9,8 +9,8 @@ import { Users, UserCheck, UserX, Trophy, Plus } from "lucide-react"
 
 export default async function ChauffeursPage() {
 
-  const { data: chauffeurs } = await supabase.from("vue_chauffeurs_vehicules").select("*")
-  const { data: classement } = await supabase.from("classement_chauffeurs").select("*").order("ca", { ascending: false })
+  const { data: chauffeurs } = await supabaseAdmin.from("vue_chauffeurs_vehicules").select("*")
+  const { data: classement } = await supabaseAdmin.from("classement_chauffeurs").select("*").order("ca", { ascending: false })
 
   const totalChauffeurs   = chauffeurs?.length || 0
   const chauffeursActifs  = chauffeurs?.filter(c => c.actif === true).length  || 0
@@ -19,7 +19,7 @@ export default async function ChauffeursPage() {
 
   let versementsTop: { date_recette: string; montant: number }[] = []
   if (topChauffeur) {
-    const { data } = await supabase.from("vue_ca_chauffeur_jour").select("*").eq("nom", topChauffeur.nom)
+    const { data } = await supabaseAdmin.from("vue_ca_chauffeur_jour").select("*").eq("nom", topChauffeur.nom)
     versementsTop = (data || []).map((d: Record<string, unknown>) => ({
       date_recette: String(d.date_recette ?? d.date ?? ""),
       montant:      Number(d.montant ?? d.ca ?? d.ca_jour ?? d.chiffre_affaire ?? 0),

@@ -1,13 +1,13 @@
 export const dynamic = 'force-dynamic'
 
-import { supabase } from "@/lib/supabaseClient"
+import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import DepensesPageClient from "@/components/DepensesPageClient"
 
 export default async function DepensesPage() {
   const [{ data: depenses }, { data: categorie }, { data: jours }] = await Promise.all([
-    supabase.from("vue_dashboard_depenses").select("*").order("date_depense", { ascending: false }),
-    supabase.from("vue_depenses_par_categorie").select("*"),
-    supabase.from("vue_depenses_journalieres").select("*").order("date_depense", { ascending: true }),
+    supabaseAdmin.from("vue_dashboard_depenses").select("*").order("date_depense", { ascending: false }),
+    supabaseAdmin.from("vue_depenses_par_categorie").select("*"),
+    supabaseAdmin.from("vue_depenses_journalieres").select("*").order("date_depense", { ascending: true }),
   ])
 
   return (

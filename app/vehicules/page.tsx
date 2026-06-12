@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic'
 
-import { supabase } from "@/lib/supabaseClient"
+import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import VehiclesTable from "@/components/VehiclesTable"
 import VehiculesChart from "@/components/VehiculesChart"
 import Link from "next/link"
@@ -8,8 +8,8 @@ import { Car, CheckCircle, TrendingUp, DollarSign, Plus } from "lucide-react"
 
 export default async function VehiculesPage() {
 
-  const { data: vehicules } = await supabase.from("vue_dashboard_vehicules").select("*")
-  const { data: graph }     = await supabase.from("vue_ca_vehicule_jour").select("*").order("date_recette")
+  const { data: vehicules } = await supabaseAdmin.from("vue_dashboard_vehicules").select("*")
+  const { data: graph }     = await supabaseAdmin.from("vue_ca_vehicule_jour").select("*").order("date_recette")
 
   const totalVehicules  = vehicules?.length || 0
   const vehiculesActifs = vehicules?.filter(v => v.statut === "ACTIF").length || 0

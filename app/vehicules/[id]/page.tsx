@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic'
 
-import { supabase } from "@/lib/supabaseClient"
+import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import Link from "next/link"
 import Image from "next/image"
 import {
@@ -183,7 +183,7 @@ export default async function VehiculePage({
   const vehiculeId = parseInt(id)
 
   /* ── données véhicule ── */
-  const { data: v } = await supabase
+  const { data: v } = await supabaseAdmin
     .from("vehicules")
     .select("*")
     .eq("id_vehicule", vehiculeId)
@@ -200,7 +200,7 @@ export default async function VehiculePage({
   }
 
   /* ── CA depuis vue_dashboard_vehicules ── */
-  const { data: stats } = await supabase
+  const { data: stats } = await supabaseAdmin
     .from("vue_dashboard_vehicules")
     .select("ca_aujourdhui, ca_mensuel")
     .eq("immatriculation", v.immatriculation)
@@ -209,7 +209,7 @@ export default async function VehiculePage({
   /* ── Dépenses du mois en cours uniquement ── */
   const debutMois  = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10)
   const debutSuiv  = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString().slice(0, 10)
-  const { data: depensesMois } = await supabase
+  const { data: depensesMois } = await supabaseAdmin
     .from("depenses_vehicules")
     .select("montant")
     .eq("id_vehicule", vehiculeId)
@@ -220,7 +220,7 @@ export default async function VehiculePage({
   const profitMensuel     = (stats?.ca_mensuel || 0) - depensesTotalMois
 
   /* ── dernières recettes ── */
-  const { data: recettes } = await supabase
+  const { data: recettes } = await supabaseAdmin
     .from("vue_recettes_vehicules")
     .select("Horodatage, chauffeur, \"Montant net\"")
     .ilike("immatriculation", v.immatriculation)
