@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { supabaseAdmin as sb } from "@/lib/supabaseAdmin"
+import { requirePermission } from "@/lib/requirePermission"
 import { attribuerRecettes, type RecetteRaw, type VehiculeInfo } from "@/lib/attributionAlgo"
 
 // Pagination helper pour dépasser la limite de 1000 lignes
@@ -25,7 +26,10 @@ function normPhone8(raw: string | null | undefined): string {
   return raw.replace(/[^0-9]/g, "").slice(-8)
 }
 
-export async function POST() {
+export async function POST(req: NextRequest) {
+  const auth = await requirePermission(req, "manage_recettes")
+  if (!auth.ok) return auth.response
+
   try {
     // 1. Charger TOUTES les recettes wave (pas via la vue pour éviter les pertes)
     // NB: la vraie PK est "id" (id_recette est une ancienne colonne, souvent NULL)

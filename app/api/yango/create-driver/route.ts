@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { randomUUID } from "crypto"
+import { requirePermission } from "@/lib/requirePermission"
 
 export async function POST(req: NextRequest) {
+  const auth = await requirePermission(req, "create_driver")
+  if (!auth.ok) return auth.response
+
   try {
     const url    = process.env.YANGO_CREATE_DRIVER_URL
     const apiKey = process.env.YANGO_CREATE_DRIVER_API_KEY

@@ -21,6 +21,7 @@
 import type { NextRequest } from "next/server"
 import { NextResponse } from "next/server"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
+import { requirePermission } from "@/lib/requirePermission"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -151,6 +152,9 @@ async function computeAgregats(
 
 // ─── Route handler ──────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
+  const auth = await requirePermission(req, "view_finances_cockpit")
+  if (!auth.ok) return auth.response
+
   const url = new URL(req.url)
   const periodRaw = (url.searchParams.get("period") || "week").toLowerCase()
   if (periodRaw !== "day" && periodRaw !== "week" && periodRaw !== "month") {

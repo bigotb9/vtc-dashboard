@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
+import { requirePermission } from "@/lib/requirePermission"
 
 async function requireAdmin(req: NextRequest) {
   const token = req.headers.get("authorization")?.replace("Bearer ", "")
@@ -12,6 +13,9 @@ async function requireAdmin(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
+  const auth = await requirePermission(req, "view_fleet")
+  if (!auth.ok) return auth.response
+
   const { searchParams } = new URL(req.url)
   const id_vehicule = searchParams.get("id_vehicule")
   const from        = searchParams.get("from")

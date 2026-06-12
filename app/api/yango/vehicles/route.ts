@@ -1,6 +1,10 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
+import { requirePermission } from "@/lib/requirePermission"
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const auth = await requirePermission(req, "view_fleet")
+  if (!auth.ok) return auth.response
+
   try {
     const url    = process.env.YANGO_CARS_URL
     const apiKey = process.env.YANGO_CARS_API_KEY

@@ -10,6 +10,7 @@
 
 import { NextRequest, NextResponse } from "next/server"
 import { supabaseAdmin as sb } from "@/lib/supabaseAdmin"
+import { requirePermission } from "@/lib/requirePermission"
 import {
   getCompletude,
   type CaseStatut as _CaseStatut,
@@ -22,6 +23,9 @@ export type CaseStatut = _CaseStatut
 export type CaseData   = _CaseData
 
 export async function GET(req: NextRequest) {
+  const auth = await requirePermission(req, "view_fleet")
+  if (!auth.ok) return auth.response
+
   try {
     const { searchParams } = new URL(req.url)
     const dateFrom = searchParams.get("from")

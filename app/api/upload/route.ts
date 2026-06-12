@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
 import { randomUUID } from "crypto"
-
-// Service role client — bypass RLS entièrement
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+import { supabaseAdmin } from "@/lib/supabaseAdmin"
+import { requirePermission } from "@/lib/requirePermission"
 
 const ALLOWED_BUCKETS  = new Set(["vehicules", "avatars", "chauffeurs"])
+
+// Permission requise par bucket (anti upload anonyme). avatars = avatar perso :
+// on exige seulement une session authentifiee valide (pas de permission dediee).
+const PERM_BY_BUCKET: Record<string, string> = {
+  vehicules:  "edit_vehicle",
+  chauffeurs: "edit_chauffeur",
+}
 const MAX_FILE_SIZE    = 10 * 1024 * 1024 // 10 MB
 const ALLOWED_TYPES    = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"])
 
@@ -23,6 +25,22 @@ export async function POST(req: NextRequest) {
     // Validation du bucket
     if (!ALLOWED_BUCKETS.has(bucket)) {
       return NextResponse.json({ ok: false, error: "Bucket non autorisé" }, { status: 400 })
+    }
+
+    // Auth : permission d'edition du domaine pour vehicules/chauffeurs ;
+    // simple session authentifiee pour les avatars (photo de profil perso).
+    const needed = PERM_BY_BUCKET[bucket]
+    if (needed) {
+      const auth = await requirePermission(req, needed)
+      if (!auth.ok) return auth.response
+    } else {
+      const token = req.headers.get("authorization")?.replace("Bearer ", "")
+      const { data: { user } } = token
+        ? await supabaseAdmin.auth.getUser(token)
+        : { data: { user: null } }
+      if (!user) {
+        return NextResponse.json({ ok: false, error: "Authentification requise" }, { status: 401 })
+      }
     }
 
     // Validation de la taille
