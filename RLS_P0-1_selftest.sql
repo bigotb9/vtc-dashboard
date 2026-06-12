@@ -56,6 +56,19 @@ end $fn$;
 revoke all on function public.is_dashboard_user() from public;
 grant execute on function public.is_dashboard_user() to authenticated, service_role;
 
+-- Helper directeur GARDÉ (cast uuid protégé) — voir RLS_P0-1_apply.sql §1 bis.
+create or replace function public.is_dashboard_directeur()
+returns boolean language plpgsql stable security definer
+set search_path = public, pg_temp as $fnd$
+declare v_uid uuid;
+begin
+  begin v_uid := auth.uid(); exception when others then return false; end;
+  if v_uid is null then return false; end if;
+  return exists (select 1 from public.profiles p where p.id = v_uid and p.role = 'directeur');
+end $fnd$;
+revoke all on function public.is_dashboard_directeur() from public;
+grant execute on function public.is_dashboard_directeur() to authenticated, service_role;
+
 do $do$
 declare t text;
   fleet text[] := array['clients','vehicules','chauffeurs','recettes_wave','depenses_vehicules',
@@ -67,7 +80,7 @@ begin
     execute format('drop policy if exists %I on public.%I', t||'_sel_dashboard', t);
     execute format('create policy %I on public.%I for select to authenticated using (public.is_dashboard_user())', t||'_sel_dashboard', t);
     execute format('drop policy if exists %I on public.%I', t||'_wr_directeur', t);
-    execute format('create policy %I on public.%I for all to authenticated using (public.is_directeur()) with check (public.is_directeur())', t||'_wr_directeur', t);
+    execute format('create policy %I on public.%I for all to authenticated using (public.is_dashboard_directeur()) with check (public.is_dashboard_directeur())', t||'_wr_directeur', t);
   end loop;
 end $do$;
 
@@ -117,6 +130,13 @@ begin
     execute format('alter view public.%I set (security_invoker = on)', v);
   end loop;
 end $do$;
+
+-- DROP des policies legacy permissives (correctif du FAIL T5a) AVANT l'ENABLE.
+-- Sinon authenticated_all_* (USING(true) TO authenticated) s'additionne en OR et
+-- rouvre la fuite aux tokens authenticated/chauffeur une fois la RLS active.
+drop policy if exists authenticated_all_clients    on public.clients;
+drop policy if exists authenticated_all_vehicules  on public.vehicules;
+drop policy if exists authenticated_all_chauffeurs on public.chauffeurs;
 
 do $do$
 declare t text;
@@ -185,8 +205,14 @@ begin
       when insufficient_privilege then raise notice '[FAIL] T3a writer INSERT bloqué par la RLS : %', sqlerrm;
       when others then raise notice '[PASS] T3a writer INSERT passe la RLS (arrêté par une contrainte non-RLS : %)', sqlerrm;
     end;
-    got := (select count(*) from public.clients);
-    raise notice '[%] T3b writer SELECT clients = % (attendu 0)', case when got=0 then 'PASS' else 'FAIL' end, got;
+    -- Le writer n'a pas de GRANT SELECT sur clients -> "permission denied" (avant
+    -- meme l'evaluation RLS). C'est PLUS strict que "0 ligne" = comportement voulu.
+    begin
+      got := (select count(*) from public.clients);
+      raise notice '[%] T3b writer SELECT clients = % (attendu 0 ou permission denied)', case when got=0 then 'PASS' else 'FAIL' end, got;
+    exception when insufficient_privilege then
+      raise notice '[PASS] T3b writer SELECT clients -> permission denied (plus strict que 0 ligne, OK)';
+    end;
     reset role;
   exception when others then reset role; raise notice '[FAIL] T3 boyahbot_writer : %', sqlerrm; end;
 

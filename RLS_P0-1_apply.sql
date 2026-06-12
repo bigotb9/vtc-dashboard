@@ -3,7 +3,7 @@
 -- Projet Fleet (iixpsfsqyfnllggvsvfl).  À APPLIQUER EN PROD MANUELLEMENT.
 --
 -- Construit contre le SCHÉMA PROD RÉEL (introspection lecture seule, 12/06/2026).
--- Ordre : helper -> policies flotte -> policies boyahbot -> flip vues -> ENABLE.
+-- Ordre : helper -> policies flotte -> policies boyahbot -> DROP legacy -> flip vues -> ENABLE.
 --
 -- RÈGLES respectées :
 --   * ENABLE ROW LEVEL SECURITY (JAMAIS FORCE) -> les RPC SECURITY DEFINER
@@ -12,6 +12,12 @@
 --     PAS "authenticated" en bloc : le JWT chauffeur porte role=authenticated,
 --     donc une policy "authenticated USING(true)" rouvrirait la fuite aux
 --     tokens chauffeurs. is_dashboard_user() => false pour un token chauffeur.
+--   * DROP des policies legacy permissives authenticated_all_{clients,vehicules,
+--     chauffeurs} (USING(true) TO authenticated) AVANT l'ENABLE : inertes tant que
+--     RLS est off, elles s'additionneraient en OR a nos policies une fois la RLS
+--     active et rouvriraient la fuite aux tokens authenticated (selftest T5a).
+--     Audit prod 12/06/2026 : ce sont les SEULES policies preexistantes sur les
+--     23 tables du correctif.
 --   * boyahbot_reader / boyahbot_writer : policies calquées sur leurs GRANTS
 --     réels en prod (préserve l'accès du bot ; n8n passe de toute façon par
 --     service_role via /api/agent/process, donc immunisé).
@@ -63,9 +69,45 @@ revoke all on function public.is_dashboard_user() from public;
 grant execute on function public.is_dashboard_user() to authenticated, service_role;
 
 -- -----------------------------------------------------------------------------
+-- 1 bis) HELPER : is_dashboard_directeur()
+--    Variante GARDÉE de is_directeur() pour les policies d'écriture flotte.
+--    L'is_directeur() existant (LANGUAGE sql) fait un auth.uid() NON gardé : un
+--    token chauffeur (sub ENTIER) le fait lever "invalid input syntax for type
+--    uuid". Tant que la policy legacy USING(true) existait, l'OR court-circuitait
+--    et is_directeur() n'était jamais atteint ; une fois la legacy supprimée, il
+--    l'est -> erreur. Ce wrapper attrape le cast -> false. On NE touche PAS à
+--    is_directeur() (utilisé par les policies compta, jamais évaluées sous un
+--    token chauffeur).
+-- -----------------------------------------------------------------------------
+create or replace function public.is_dashboard_directeur()
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = public, pg_temp
+as $fnd$
+declare
+  v_uid uuid;
+begin
+  begin
+    v_uid := auth.uid();
+  exception when others then
+    return false;
+  end;
+  if v_uid is null then
+    return false;
+  end if;
+  return exists (select 1 from public.profiles p where p.id = v_uid and p.role = 'directeur');
+end;
+$fnd$;
+
+revoke all on function public.is_dashboard_directeur() from public;
+grant execute on function public.is_dashboard_directeur() to authenticated, service_role;
+
+-- -----------------------------------------------------------------------------
 -- 2) POLICIES TABLES FLOTTE (19 tables)
 --    - SELECT : utilisateurs dashboard (is_dashboard_user)
---    - écriture (ALL) : directeur uniquement (is_directeur)
+--    - écriture (ALL) : directeur uniquement (is_dashboard_directeur — cast gardé)
 --    Le service_role (routes API) bypass la RLS ; les RPC definer aussi.
 -- -----------------------------------------------------------------------------
 do $do$
@@ -87,7 +129,7 @@ begin
 
     execute format('drop policy if exists %I on public.%I', t||'_wr_directeur', t);
     execute format(
-      'create policy %I on public.%I for all to authenticated using (public.is_directeur()) with check (public.is_directeur())',
+      'create policy %I on public.%I for all to authenticated using (public.is_dashboard_directeur()) with check (public.is_dashboard_directeur())',
       t||'_wr_directeur', t);
   end loop;
 end
@@ -179,6 +221,19 @@ begin
   end loop;
 end
 $do$;
+
+-- -----------------------------------------------------------------------------
+-- 5 bis) DROP DES POLICIES LEGACY PERMISSIVES (correctif du FAIL T5a du selftest)
+--    Ces 3 policies préexistantes sont PERMISSIVE / TO authenticated / USING(true).
+--    Inertes tant que la RLS est off, elles redeviendraient actives à l'ENABLE et,
+--    permissives, s'additionneraient (OR) à nos policies _sel_dashboard -> tout
+--    token authenticated (y compris un JWT chauffeur) relirait toute la table.
+--    On les supprime AVANT d'activer la RLS. (Audit prod 12/06/2026 : ce sont les
+--    SEULES policies préexistantes sur les 23 tables du correctif.)
+-- -----------------------------------------------------------------------------
+drop policy if exists authenticated_all_clients    on public.clients;
+drop policy if exists authenticated_all_vehicules  on public.vehicules;
+drop policy if exists authenticated_all_chauffeurs on public.chauffeurs;
 
 -- -----------------------------------------------------------------------------
 -- 6) ENABLE ROW LEVEL SECURITY (jamais FORCE) sur les 23 tables exposées
