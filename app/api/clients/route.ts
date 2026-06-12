@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server"
-import { supabase } from "@/lib/supabaseClient"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import { requirePermission } from "@/lib/requirePermission"
 import { calculLoyerNet } from "@/lib/clients/calculLoyerNet"
@@ -73,7 +72,7 @@ export async function GET(req: NextRequest) {
     const dateFrom = `${mois}-01`
     const dateTo   = new Date(year, month, 1).toISOString().slice(0, 10)
 
-    let clientQ = supabase.from("clients").select("*").order("nom")
+    let clientQ = supabaseAdmin.from("clients").select("*").order("nom")
     if (statutFilter === "actifs")   clientQ = clientQ.eq("actif", true)
     if (statutFilter === "inactifs") clientQ = clientQ.eq("actif", false)
     // "tous" : pas de filtre
@@ -91,16 +90,16 @@ export async function GET(req: NextRequest) {
       depensesRes,
     ] = await Promise.all([
       clientQ,
-      supabase
+      supabaseAdmin
         .from("vehicules")
         .select("id_vehicule, immatriculation, montant_mensuel_client, sous_gestion, id_client, valeur_acquisition_client")
         .eq("sous_gestion", true),
-      supabase
+      supabaseAdmin
         .from("vue_recettes_vehicules")
         .select(`immatriculation, "Montant net", Horodatage`)
         .gte("Horodatage", dateFrom)
         .lt("Horodatage",  dateTo),
-      supabase
+      supabaseAdmin
         .from("depenses_vehicules")
         // Lot U (audit 27/05/2026) : ajout type_depense pour filtrer
         // les reversements dans calculLoyerNet (fix finding 1.1).
@@ -296,7 +295,7 @@ export async function POST(req: NextRequest) {
     if (!auth.ok) return auth.response
 
     const body = await req.json()
-    const { error, data: client } = await supabase
+    const { error, data: client } = await supabaseAdmin
       .from("clients")
       .insert([{ nom: body.nom, telephone: body.telephone, email: body.email, notes: body.notes }])
       .select()

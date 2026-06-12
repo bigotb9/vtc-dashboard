@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { supabase } from "@/lib/supabaseClient"
+import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import { requirePermission } from "@/lib/requirePermission"
 
 // Auth Lot Z (26/05/2026 audit) : requirePermission("manage_tasks") sur toutes
@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
   const id_vehicule = searchParams.get("id_vehicule")
   const fait        = searchParams.get("fait") // "true" | "false" | null
 
-  let query = supabase
+  let query = supabaseAdmin
     .from("taches_suivi")
     .select("*, vehicules(immatriculation)")
     .order("created_at", { ascending: false })
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
   if (!id_vehicule || !immatriculation || !description)
     return NextResponse.json({ error: "Champs requis manquants" }, { status: 400 })
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("taches_suivi")
     .insert({ id_vehicule, immatriculation, description, id_entretien: id_entretien || null })
     .select()
@@ -55,7 +55,7 @@ export async function PATCH(req: NextRequest) {
   const { id, fait } = body
   if (!id) return NextResponse.json({ error: "id requis" }, { status: 400 })
 
-  const { error } = await supabase
+  const { error } = await supabaseAdmin
     .from("taches_suivi")
     .update({ fait: !!fait, fait_at: fait ? new Date().toISOString() : null })
     .eq("id", id)
@@ -72,7 +72,7 @@ export async function DELETE(req: NextRequest) {
   const id = searchParams.get("id")
   if (!id) return NextResponse.json({ error: "id requis" }, { status: 400 })
 
-  const { error } = await supabase.from("taches_suivi").delete().eq("id", id)
+  const { error } = await supabaseAdmin.from("taches_suivi").delete().eq("id", id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ success: true })
 }

@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
-import { supabase } from "@/lib/supabaseClient"
+import { supabaseAdmin } from "@/lib/supabaseAdmin"
+import { requirePermission } from "@/lib/requirePermission"
 
 export const maxDuration = 30
 
 export async function GET(req: NextRequest) {
+  const auth = await requirePermission(req, "view_fleet")
+  if (!auth.ok) return auth.response
+
   try {
     const { searchParams } = new URL(req.url)
     const page    = Math.max(0, parseInt(searchParams.get("page") || "0"))
@@ -13,13 +17,13 @@ export async function GET(req: NextRequest) {
     const offset  = page * limit
 
     // Récupère d'abord le total pour la pagination
-    let countQuery = supabase.from("commandes_yango").select("id", { count: "exact", head: true })
+    let countQuery = supabaseAdmin.from("commandes_yango").select("id", { count: "exact", head: true })
     if (status) countQuery = countQuery.eq("status", status)
 
     const { count } = await countQuery
 
     // Fetch la page demandée
-    let query = supabase
+    let query = supabaseAdmin
       .from("commandes_yango")
       .select("raw, status, created_at, ended_at")
       .order("created_at", { ascending: false })

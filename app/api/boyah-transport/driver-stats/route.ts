@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { supabase } from "@/lib/supabaseClient"
+import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import { requirePermission } from "@/lib/requirePermission"
 
 // Auth Lot Z (26/05/2026 audit) : requirePermission("view_dashboard") — la
@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
     const COMMISSION = Number(process.env.YANGO_COMMISSION_RATE || 0.025)
 
     // 1. Agregation per-chauffeur entierement en SQL (remplace fetchAllOrders + JS)
-    const { data: sqlStats, error: rpcError } = await supabase.rpc("boyah_driver_stats", {
+    const { data: sqlStats, error: rpcError } = await supabaseAdmin.rpc("boyah_driver_stats", {
       p_commission: COMMISSION,
     })
     if (rpcError) throw rpcError

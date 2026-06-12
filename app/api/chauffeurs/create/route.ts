@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { logActivity } from "@/lib/logActivity"
 import { requirePermission } from "@/lib/requirePermission"
-import { supabase } from "@/lib/supabaseClient"
+import { supabaseAdmin } from "@/lib/supabaseAdmin"
 
 export async function POST(req: NextRequest) {
   try {
@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
     if (body.numero_wave) {
       const normalized = String(body.numero_wave).replace(/[^0-9]/g, "")
       const last8      = normalized.slice(-8)
-      const { data: existants } = await supabase
+      const { data: existants } = await supabaseAdmin
         .from("chauffeurs")
         .select("id_chauffeur, nom, numero_wave, actif")
       const dup = (existants || []).find(c => {
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const { error } = await supabase.from("chauffeurs").insert([body])
+    const { error } = await supabaseAdmin.from("chauffeurs").insert([body])
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 400 })
 
     const token = req.headers.get("authorization")?.replace("Bearer ", "") || ""

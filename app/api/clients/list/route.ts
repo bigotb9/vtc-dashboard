@@ -9,14 +9,14 @@
  */
 
 import { NextRequest, NextResponse } from "next/server"
-import { supabase } from "@/lib/supabaseClient"
+import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import { requirePermission } from "@/lib/requirePermission"
 
 export async function GET(req: NextRequest) {
   const auth = await requirePermission(req, "view_clients")
   if (!auth.ok) return auth.response
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("clients")
     .select("id, nom")
     .order("nom", { ascending: true })

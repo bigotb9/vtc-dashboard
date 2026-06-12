@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { logActivity } from "@/lib/logActivity"
 import { requirePermission } from "@/lib/requirePermission"
-import { supabase } from "@/lib/supabaseClient"
+import { supabaseAdmin } from "@/lib/supabaseAdmin"
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Corps de requête invalide" }, { status: 400 })
     }
 
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from("vehicules")
       .insert([body])
 

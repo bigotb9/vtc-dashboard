@@ -12,7 +12,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { logActivity } from "@/lib/logActivity"
 import { requirePermission } from "@/lib/requirePermission"
-import { supabase } from "@/lib/supabaseClient"
+import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import { repriseRecettesWave } from "@/lib/compta/reprise"
 
 /** Extrait une date YYYY-MM-DD depuis un horodatage Wave (ISO ou timestamp). */
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Corps de requête invalide" }, { status: 400 })
     }
 
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from("recettes_wave")
       .insert([body])
 

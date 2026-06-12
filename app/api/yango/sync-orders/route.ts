@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
-import { supabase } from "@/lib/supabaseClient"
+import { supabaseAdmin } from "@/lib/supabaseAdmin"
+import { requirePermission } from "@/lib/requirePermission"
 
 export const maxDuration = 60
 
@@ -135,6 +136,15 @@ async function fetchYangoPage(
 }
 
 export async function POST(req: NextRequest) {
+  // Auth : accepte le cron (CRON_SECRET, transmis par le GET delegue ci-dessous)
+  // OU un utilisateur avec la permission sync_orders (declenchement manuel UI).
+  const cronSecret = process.env.CRON_SECRET
+  const isCron = !!cronSecret && req.headers.get("authorization") === `Bearer ${cronSecret}`
+  if (!isCron) {
+    const auth = await requirePermission(req, "sync_orders")
+    if (!auth.ok) return auth.response
+  }
+
   const t0 = Date.now()
   try {
     const ordersUrl = process.env.YANGO_ORDERS_URL
@@ -177,7 +187,7 @@ export async function POST(req: NextRequest) {
 
     if (forceFrom) {
       // Sync complet : descend dans l'historique
-      const { data: oldest } = await supabase
+      const { data: oldest } = await supabaseAdmin
         .from("commandes_yango")
         .select("ended_at")
         .not("ended_at", "is", null)
@@ -193,7 +203,7 @@ export async function POST(req: NextRequest) {
       // Incremental : depuis la dernière course TERMINÉE stockée, MOINS 1h
       // pour rattraper les corrections rétroactives (statut/prix updaté côté
       // Yango après coup).
-      const { data: latest } = await supabase
+      const { data: latest } = await supabaseAdmin
         .from("commandes_yango")
         .select("ended_at")
         .not("ended_at", "is", null)
@@ -335,7 +345,7 @@ export async function POST(req: NextRequest) {
             ended_at:   o.ended_at  || null,
             raw:        o,
           }))
-          const { error: upsertErr } = await supabase
+          const { error: upsertErr } = await supabaseAdmin
             .from("commandes_yango")
             .upsert(rows, { onConflict: "id" })
 

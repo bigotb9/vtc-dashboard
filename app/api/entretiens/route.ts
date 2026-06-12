@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { supabase } from "@/lib/supabaseClient"
+import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import { requirePermission } from "@/lib/requirePermission"
 
 // Auth Lot Z (26/05/2026 audit) : requirePermission("manage_maintenance") sur
@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
   const date_from   = searchParams.get("date_from")
   const date_to     = searchParams.get("date_to")
 
-  let query = supabase
+  let query = supabaseAdmin
     .from("entretiens")
     .select("*")
     .order("date_realise", { ascending: false })
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
 
   const { inspection } = body
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("entretiens")
     .insert({
       id_vehicule, immatriculation, date_realise,
@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
     const taches = lignes.map((desc: string) => ({
       id_vehicule, immatriculation, description: desc, id_entretien: data.id,
     }))
-    await supabase.from("taches_suivi").insert(taches)
+    await supabaseAdmin.from("taches_suivi").insert(taches)
   }
 
   // Tâches auto depuis inspection : points critiques / très mauvais / pannes
@@ -135,7 +135,7 @@ export async function POST(req: NextRequest) {
       if (!inspection.equipements.cric) add("🔩 Cric/clés de roue absents")
     }
 
-    if (autoTaches.length > 0) await supabase.from("taches_suivi").insert(autoTaches)
+    if (autoTaches.length > 0) await supabaseAdmin.from("taches_suivi").insert(autoTaches)
   }
 
   return NextResponse.json({ success: true, entretien: data })
@@ -148,7 +148,7 @@ export async function DELETE(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const id = searchParams.get("id")
   if (!id) return NextResponse.json({ error: "id requis" }, { status: 400 })
-  const { error } = await supabase.from("entretiens").delete().eq("id", id)
+  const { error } = await supabaseAdmin.from("entretiens").delete().eq("id", id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ success: true })
 }

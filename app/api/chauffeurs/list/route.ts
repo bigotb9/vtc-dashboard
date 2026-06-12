@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { supabase } from "@/lib/supabaseClient"
+import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import { requirePermission } from "@/lib/requirePermission"
 
 // Auth Lot Z (26/05/2026 audit) : requirePermission("view_fleet") — la route
@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
   const auth = await requirePermission(req, "view_fleet")
   if (!auth.ok) return auth.response
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("chauffeurs")
     .select("id_chauffeur, nom, actif, photo")
     .order("nom")

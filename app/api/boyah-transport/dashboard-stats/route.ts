@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { supabase } from "@/lib/supabaseClient"
+import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import { requirePermission } from "@/lib/requirePermission"
 
 // Auth Lot Z (26/05/2026 audit) : requirePermission("view_dashboard") — la
@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
     // YANGO_COMMISSION_RATE (ex: "0.025" pour 2.5%, "0.05" pour 5%).
     const commission = Number(process.env.YANGO_COMMISSION_RATE || 0.025)
 
-    const { data, error } = await supabase.rpc("boyah_dashboard_stats", {
+    const { data, error } = await supabaseAdmin.rpc("boyah_dashboard_stats", {
       p_commission: commission,
     })
     if (error) throw error

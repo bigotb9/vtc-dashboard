@@ -10,7 +10,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { logActivity } from "@/lib/logActivity"
 import { requirePermission } from "@/lib/requirePermission"
-import { supabase } from "@/lib/supabaseClient"
+import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import { repriseDepensesVehicules } from "@/lib/compta/reprise"
 
 /** Extrait une date YYYY-MM-DD depuis une date_depense (string YYYY-MM-DD ou ISO). */
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
       }, { status: 400 })
     }
 
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from("depenses_vehicules")
       .insert([body])
 

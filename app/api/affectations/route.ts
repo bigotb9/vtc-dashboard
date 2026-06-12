@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { supabase } from "@/lib/supabaseClient"
+import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import { requirePermission } from "@/lib/requirePermission"
 
 // Auth Lot Z (26/05/2026 audit) : requirePermission("manage_drivers") sur toutes
@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
   const id_vehicule  = searchParams.get("id_vehicule")
 
   // 1. Récupérer l'affectation active
-  let query = supabase
+  let query = supabaseAdmin
     .from("affectation_chauffeurs_vehicules")
     .select("id_affectation, id_chauffeur, id_vehicule, date_debut, date_fin")
     .is("date_fin", null)
@@ -32,8 +32,8 @@ export async function GET(req: NextRequest) {
   // 2. Enrichir avec les données chauffeur et véhicule
   const enriched = await Promise.all(affectations.map(async (aff) => {
     const [{ data: chauffeur }, { data: vehicule }] = await Promise.all([
-      supabase.from("chauffeurs").select("id_chauffeur, nom, actif, photo").eq("id_chauffeur", aff.id_chauffeur).single(),
-      supabase.from("vehicules").select("id_vehicule, immatriculation, type_vehicule, statut, photo").eq("id_vehicule", aff.id_vehicule).single(),
+      supabaseAdmin.from("chauffeurs").select("id_chauffeur, nom, actif, photo").eq("id_chauffeur", aff.id_chauffeur).single(),
+      supabaseAdmin.from("vehicules").select("id_vehicule, immatriculation, type_vehicule, statut, photo").eq("id_vehicule", aff.id_vehicule).single(),
     ])
     return { ...aff, chauffeurs: chauffeur, vehicules: vehicule }
   }))
@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
   const today = new Date().toISOString().slice(0, 10)
 
   // Vérifier que le chauffeur n'est pas déjà affecté à ce même véhicule
-  const { data: existing } = await supabase
+  const { data: existing } = await supabaseAdmin
     .from("affectation_chauffeurs_vehicules")
     .select("id_affectation")
     .eq("id_chauffeur", id_chauffeur)
@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
   if (existing?.length) return NextResponse.json({ error: "Ce chauffeur est déjà affecté à ce véhicule" }, { status: 400 })
 
   // Vérifier que le véhicule n'a pas déjà 2 chauffeurs actifs
-  const { data: vehiculeAff } = await supabase
+  const { data: vehiculeAff } = await supabaseAdmin
     .from("affectation_chauffeurs_vehicules")
     .select("id_affectation")
     .eq("id_vehicule", id_vehicule)
@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Ce véhicule a déjà 2 chauffeurs affectés (maximum)" }, { status: 400 })
 
   // Fermer l'affectation active du chauffeur sur un AUTRE véhicule (s'il en a une)
-  await supabase
+  await supabaseAdmin
     .from("affectation_chauffeurs_vehicules")
     .update({ date_fin: today })
     .eq("id_chauffeur", id_chauffeur)
@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
 
   // Si une affectation FERMÉE existe déjà pour cette paire (chauffeur, véhicule),
   // la rouvrir plutôt que d'en créer une nouvelle → évite l'accumulation de doublons historiques
-  const { data: closed } = await supabase
+  const { data: closed } = await supabaseAdmin
     .from("affectation_chauffeurs_vehicules")
     .select("id_affectation")
     .eq("id_chauffeur", id_chauffeur)
@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
     .limit(1)
 
   if (closed?.length) {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from("affectation_chauffeurs_vehicules")
       .update({ date_fin: null, date_debut: today })
       .eq("id_affectation", closed[0].id_affectation)
@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Sinon, créer une nouvelle affectation
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("affectation_chauffeurs_vehicules")
     .insert({ id_chauffeur, id_vehicule, date_debut: today })
     .select()
@@ -121,7 +121,7 @@ export async function DELETE(req: NextRequest) {
   const { id_chauffeur, id_vehicule } = await req.json()
   const today = new Date().toISOString().slice(0, 10)
 
-  let query = supabase
+  let query = supabaseAdmin
     .from("affectation_chauffeurs_vehicules")
     .update({ date_fin: today })
     .is("date_fin", null)
