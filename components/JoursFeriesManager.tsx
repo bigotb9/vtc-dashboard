@@ -1,4 +1,5 @@
 "use client"
+import { authFetch } from "@/lib/authFetch"
 
 import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabaseClient"
@@ -59,7 +60,7 @@ export default function JoursFeriesManager() {
 
   const load = async () => {
     setLoading(true)
-    const res  = await fetch("/api/jours-feries")
+    const res  = await authFetch("/api/jours-feries")
     const data = await res.json()
     if (data.ok) setFeries(data.feries || [])
     setLoading(false)
@@ -71,7 +72,7 @@ export default function JoursFeriesManager() {
       return
     }
     setSaving(true)
-    const res  = await fetch("/api/jours-feries", {
+    const res  = await authFetch("/api/jours-feries", {
       method:  "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body:    JSON.stringify({ date: form.date, libelle: form.libelle, montant: Number(form.montant) || 15000 }),
@@ -94,7 +95,7 @@ export default function JoursFeriesManager() {
     let imported = 0
     let skipped  = 0
     for (const f of liste) {
-      const res = await fetch("/api/jours-feries", {
+      const res = await authFetch("/api/jours-feries", {
         method:  "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body:    JSON.stringify({ date: f.date, libelle: f.libelle, montant: 15000 }),
@@ -108,7 +109,7 @@ export default function JoursFeriesManager() {
   }
 
   const supprimer = async (date: string) => {
-    const res  = await fetch(`/api/jours-feries?date=${date}`, {
+    const res  = await authFetch(`/api/jours-feries?date=${date}`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${token}` },
     })

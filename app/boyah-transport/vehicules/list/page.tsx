@@ -1,4 +1,5 @@
 "use client"
+import { authFetch } from "@/lib/authFetch"
 
 import { useEffect, useState, useMemo } from "react"
 import {
@@ -29,7 +30,7 @@ export default function VehiclesPage() {
   const [search, setSearch]     = useState("")
 
   useEffect(() => {
-    fetch("/api/yango/vehicles")
+    authFetch("/api/yango/vehicles")
       .then(r => r.json())
       .then(data => {
         const formatted = (data.cars || []).map((v: { id: string; brand: string; model: string; number: string; status: string; year: number }) => ({

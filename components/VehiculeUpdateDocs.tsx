@@ -1,4 +1,5 @@
 "use client"
+import { authFetch } from "@/lib/authFetch"
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
@@ -66,7 +67,7 @@ export default function VehiculeUpdateDocs({ id, initial }: Props) {
       date_expiration_patente: form.date_expiration_patente || null,
     }
 
-    const res = await fetch("/api/vehicules/update", {
+    const res = await authFetch("/api/vehicules/update", {
       method: "PATCH",
       body: JSON.stringify(payload),
     })

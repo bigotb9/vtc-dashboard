@@ -3,6 +3,8 @@
  * Évite la duplication entre BoyahDashboard et CommandesPage.
  */
 
+import { authFetch } from "@/lib/authFetch"
+
 const SYNC_KEY     = "yango_last_sync"
 const SYNC_DELAY   = 5 * 60 * 1000 // 5 minutes
 
@@ -27,7 +29,7 @@ export function markSynced() {
  */
 export async function runQuickSync(): Promise<{ synced: number; error?: string }> {
   try {
-    const r = await fetch("/api/yango/sync-orders", { method: "POST" })
+    const r = await authFetch("/api/yango/sync-orders", { method: "POST" })
     const d = await r.json()
     if (!r.ok) {
       return { synced: 0, error: `HTTP ${r.status} : ${d.error || JSON.stringify(d).slice(0, 200)}` }
@@ -54,7 +56,7 @@ export async function runFullSync(
   let hasMore = true
   try {
     while (hasMore) {
-      const r = await fetch("/api/yango/sync-orders", {
+      const r = await authFetch("/api/yango/sync-orders", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ from_date: fromDate }),

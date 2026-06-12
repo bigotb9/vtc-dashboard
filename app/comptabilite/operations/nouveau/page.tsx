@@ -1,4 +1,5 @@
 "use client"
+import { authFetch } from "@/lib/authFetch"
 
 /**
  * /comptabilite/operations/nouveau — Écran 4 Phase 3.
@@ -126,7 +127,7 @@ export default function NouvelleOperationPage() {
   useEffect(() => {
     if (!prefillCategorieId || categorie) return
     // Fetch pour récupérer le sens et basculer le type si besoin
-    fetch(`/api/compta/categories/${prefillCategorieId}`)
+    authFetch(`/api/compta/categories/${prefillCategorieId}`)
       .then(r => r.ok ? r.json() : null)
       .then(j => {
         const senCat = j?.data?.sens

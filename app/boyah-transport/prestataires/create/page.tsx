@@ -1,4 +1,5 @@
 "use client"
+import { authFetch } from "@/lib/authFetch"
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
@@ -57,10 +58,10 @@ export default function CreateDriverPage() {
   const getRule = (item: WorkRuleItem) => item?.rule || item
 
   useEffect(() => {
-    fetch("/api/yango/vehicles").then(r => r.json()).then(d => {
+    authFetch("/api/yango/vehicles").then(r => r.json()).then(d => {
       setVehicles(d?.cars || d?.vehicles || d?.items || [])
     })
-    fetch("/api/yango/work-rules").then(r => r.json()).then(d => {
+    authFetch("/api/yango/work-rules").then(r => r.json()).then(d => {
       setWorkRules(Array.isArray(d) ? d : d?.rules || d?.work_rules || d?.items || [])
     })
   }, [])
@@ -110,7 +111,7 @@ export default function CreateDriverPage() {
       ...(form.car_id    && { car_id:    form.car_id }),
     }
 
-    const res  = await fetch("/api/yango/create-driver", {
+    const res  = await authFetch("/api/yango/create-driver", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),

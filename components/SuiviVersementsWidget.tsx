@@ -1,4 +1,5 @@
 "use client"
+import { authFetch } from "@/lib/authFetch"
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
@@ -48,7 +49,7 @@ export default function SuiviVersementsWidget() {
 
   const load = async () => {
     setLoading(true)
-    const res  = await fetch(`/api/completude?from=${from}&to=${to}`)
+    const res  = await authFetch(`/api/completude?from=${from}&to=${to}`)
     const d    = await res.json()
     setData(d)
     setLoading(false)
@@ -69,7 +70,7 @@ export default function SuiviVersementsWidget() {
     const parts: string[] = []
     try {
       // Etape 1 : Attribution chauffeurs
-      const resAttr = await fetch("/api/recettes/attribution", { method: "POST" })
+      const resAttr = await authFetch("/api/recettes/attribution", { method: "POST" })
       const dAttr = await resAttr.json()
       if (dAttr.ok) {
         parts.push(`${dAttr.attributions_count ?? 0} attributions`)
@@ -77,7 +78,7 @@ export default function SuiviVersementsWidget() {
 
       // Etape 2 : Cascade recettes_wave -> operations (idempotent)
       try {
-        const resCasc = await fetch("/api/compta/reprise/recettes-wave", { method: "POST" })
+        const resCasc = await authFetch("/api/compta/reprise/recettes-wave", { method: "POST" })
         if (resCasc.ok) {
           const dCasc = await resCasc.json()
           if (dCasc.ok && dCasc.data?.creees > 0) {
@@ -88,7 +89,7 @@ export default function SuiviVersementsWidget() {
 
       // Etape 3 : Regeneration ecritures pour ops recette_wave sans ecriture
       try {
-        const resEcr = await fetch("/api/compta/operations/regenerer-ecritures", {
+        const resEcr = await authFetch("/api/compta/operations/regenerer-ecritures", {
           method:  "POST",
           headers: { "Content-Type": "application/json" },
           body:    JSON.stringify({ source: "recette_wave" }),
@@ -117,7 +118,7 @@ export default function SuiviVersementsWidget() {
   const today = new Date().toISOString().slice(0, 10)
   const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
   const isSundayToday  = new Date().getDay() === 0
-  const casesToday     = data?.cases.filter(c => c.date === today) || []
+  const casesToday     = data?.cases?.filter(c => c.date === today) || []
   const isHolidayToday = casesToday.length > 0 && casesToday.every(c => c.statut === "jour_ferie_auto" || c.statut === "paye_complet")
     && casesToday.some(c => c.statut === "jour_ferie_auto")
 
@@ -132,10 +133,10 @@ export default function SuiviVersementsWidget() {
   // - 23/05 : suppression de la variable alertesHier qui dupliquait
   //   aRecouvrerHier (filtre 100% identique) + transformation des 2
   //   sous-sections en accordéons collapsibles.
-  const aRecouvrerHier = data?.cases.filter(c =>
+  const aRecouvrerHier = data?.cases?.filter(c =>
     c.date === yesterday && (c.statut === "manquant" || c.statut === "paye_insuffisant")
   ) || []
-  const versesHier = data?.cases.filter(c =>
+  const versesHier = data?.cases?.filter(c =>
     c.date === yesterday && (
       c.statut === "paye_complet" ||
       c.statut === "paye_justifie" ||

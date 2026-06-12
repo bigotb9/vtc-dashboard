@@ -1,4 +1,5 @@
 "use client"
+import { authFetch } from "@/lib/authFetch"
 
 /**
  * MargeVehiculesWidget — Tableau compact de la marge nette par vehicule
@@ -48,7 +49,7 @@ export default function MargeVehiculesWidget() {
     const load = async () => {
       setLoading(true); setError(null)
       try {
-        const res = await fetch("/api/vehicules/marge")
+        const res = await authFetch("/api/vehicules/marge")
         const j   = await res.json()
         if (cancelled) return
         if (!j.ok) { setError(j.error || "Erreur"); setData(null); return }

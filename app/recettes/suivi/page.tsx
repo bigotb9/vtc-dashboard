@@ -1,4 +1,5 @@
 "use client"
+import { authFetch } from "@/lib/authFetch"
 
 import { useEffect, useState, useMemo, useCallback } from "react"
 import Link from "next/link"
@@ -204,7 +205,7 @@ export default function SuiviVersementsPage() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    const res = await fetch(`/api/completude?from=${from}&to=${to}`)
+    const res = await authFetch(`/api/completude?from=${from}&to=${to}`)
     const d   = await res.json()
     setData(d)
     setLoading(false)
@@ -214,7 +215,7 @@ export default function SuiviVersementsPage() {
 
   const recalculer = async () => {
     setRecalcul(true)
-    const res = await fetch("/api/recettes/attribution", { method: "POST" })
+    const res = await authFetch("/api/recettes/attribution", { method: "POST" })
     const d   = await res.json()
     if (d.ok) {
       const parts = [`${d.attributions_count} attributions`]
@@ -233,7 +234,7 @@ export default function SuiviVersementsPage() {
   const matrix = useMemo(() => {
     if (!data) return null
     const m = new Map<string, CaseData>()   // key = `${id_vehicule}|${date}`
-    for (const c of data.cases) {
+    for (const c of data.cases ?? []) {
       m.set(`${c.id_vehicule}|${c.date}`, c)
     }
     return m
@@ -243,7 +244,7 @@ export default function SuiviVersementsPage() {
   const globalCounts = useMemo(() => {
     const m = new Map<CaseStatut, number>()
     if (!data) return m
-    for (const c of data.cases) m.set(c.statut, (m.get(c.statut) || 0) + 1)
+    for (const c of data.cases ?? []) m.set(c.statut, (m.get(c.statut) || 0) + 1)
     return m
   }, [data])
 
@@ -251,7 +252,7 @@ export default function SuiviVersementsPage() {
   const perVehicleCount = useMemo(() => {
     const m = new Map<number, number>()
     if (!data || !filter) return m
-    for (const c of data.cases) {
+    for (const c of data.cases ?? []) {
       if (c.statut === filter) m.set(c.id_vehicule, (m.get(c.id_vehicule) || 0) + 1)
     }
     return m

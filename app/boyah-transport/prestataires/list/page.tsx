@@ -1,4 +1,5 @@
 "use client"
+import { authFetch } from "@/lib/authFetch"
 
 import { useEffect, useState, useMemo } from "react"
 import {
@@ -28,7 +29,7 @@ export default function PrestatairesPage() {
   const [search, setSearch]   = useState("")
 
   useEffect(() => {
-    fetch("/api/yango/drivers")
+    authFetch("/api/yango/drivers")
       .then(r => r.json())
       .then(d => setDrivers(d.drivers || []))
       .finally(() => setLoading(false))

@@ -1,4 +1,5 @@
 "use client"
+import { authFetch } from "@/lib/authFetch"
 
 import { useState, useRef, useEffect } from "react"
 import { useRouter, useParams } from "next/navigation"
@@ -16,7 +17,7 @@ async function uploadPhoto(bucket: string, file: File): Promise<string> {
   const fd = new FormData()
   fd.append("file", file)
   fd.append("bucket", bucket)
-  const res  = await fetch("/api/upload", { method: "POST", body: fd })
+  const res  = await authFetch("/api/upload", { method: "POST", body: fd })
   const data = await res.json()
   if (!data.ok) throw new Error(data.error)
   return data.url
@@ -174,7 +175,7 @@ export default function EditChauffeur() {
       const finalRecto = rectoFile ? await uploadPhoto("chauffeurs", rectoFile) : rectoUrl
       const finalVerso = versoFile ? await uploadPhoto("chauffeurs", versoFile) : versoUrl
 
-      const res = await fetch("/api/chauffeurs/update", {
+      const res = await authFetch("/api/chauffeurs/update", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

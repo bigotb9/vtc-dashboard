@@ -76,7 +76,7 @@ export default function CommandesPage() {
       ...(df && { date_from: df }),
       ...(dt && { date_to:   dt }),
     })
-    const res  = await fetch(`/api/yango/orders?${params}`)
+    const res  = await authFetch(`/api/yango/orders?${params}`)
     const data = await res.json()
     setOrders(data.orders || [])
     setTotal(data.total   || 0)

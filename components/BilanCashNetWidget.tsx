@@ -1,4 +1,5 @@
 "use client"
+import { authFetch } from "@/lib/authFetch"
 
 /**
  * BilanCashNetWidget — Widget dashboard affichant le cash net (recettes Wave +
@@ -56,7 +57,7 @@ export default function BilanCashNetWidget() {
   const load = useCallback(async (p: Period) => {
     setLoading(true); setError(null)
     try {
-      const res = await fetch(`/api/compta/bilan-cash-net?period=${p}`)
+      const res = await authFetch(`/api/compta/bilan-cash-net?period=${p}`)
       const j   = await res.json()
       if (!j.ok) { setError(j.error || "Erreur"); setData(null); return }
       setData(j as Response)

@@ -1,4 +1,5 @@
 "use client"
+import { authFetch } from "@/lib/authFetch"
 
 import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
@@ -47,7 +48,7 @@ export default function JustificationModal({
   const save = async () => {
     setSaving(true)
     const { data: { session } } = await supabase.auth.getSession()
-    const res  = await fetch("/api/justifications", {
+    const res  = await authFetch("/api/justifications", {
       method:  "POST",
       headers: {
         "Content-Type":   "application/json",
