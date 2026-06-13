@@ -6012,16 +6012,19 @@ GRANT ALL ON FUNCTION "public"."app_chauffeur_home"() TO "service_role";
 
 REVOKE ALL ON FUNCTION "public"."app_chauffeur_login"("p_phone" "text", "p_pin" "text") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."app_chauffeur_login"("p_phone" "text", "p_pin" "text") TO "service_role";
+REVOKE EXECUTE ON FUNCTION "public"."app_chauffeur_login"("p_phone" "text", "p_pin" "text") FROM "anon", "authenticated";
 
 
 
 REVOKE ALL ON FUNCTION "public"."app_chauffeur_set_pin"("p_id_chauffeur" integer, "p_pin" "text") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."app_chauffeur_set_pin"("p_id_chauffeur" integer, "p_pin" "text") TO "service_role";
+REVOKE EXECUTE ON FUNCTION "public"."app_chauffeur_set_pin"("p_id_chauffeur" integer, "p_pin" "text") FROM "anon", "authenticated";
 
 
 
 REVOKE ALL ON FUNCTION "public"."app_chauffeur_verify_phone"("p_phone" "text") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."app_chauffeur_verify_phone"("p_phone" "text") TO "service_role";
+REVOKE EXECUTE ON FUNCTION "public"."app_chauffeur_verify_phone"("p_phone" "text") FROM "anon", "authenticated";
 
 
 
