@@ -40,9 +40,28 @@ npx tsc --noEmit
 # Build prod local
 npm run build
 
-# Migrations Supabase : à exécuter manuellement via Supabase Studio SQL Editor
-# (pas de supabase CLI utilisée actuellement)
+# Migrations DB : source unique = supabase/migrations/ (CLI Supabase db dump / db push).
+# Voir la section "Migrations DB (source unique)" ci-dessous.
 ```
+
+## Migrations DB (source unique)
+
+**La seule source de migrations DB est `vtc-dashboard/supabase/migrations/`.** Depuis le
+re-baseline du 12/06/2026, ce dossier ne contient qu'un fichier :
+`00000000000000_baseline.sql` = **état complet de la prod** (53 tables, 37 vues
+security_invoker, 36 fonctions, 15 triggers, RLS du 12/06 + helpers
+`is_dashboard_user`/`is_dashboard_directeur`, 105 policies public + 28 storage, rôles
+`boyahbot_*`, 8 buckets).
+
+- L'ancien `legacy_baseline.sql` + les 38 migrations datées historiques sont dans
+  `supabase/migrations/_archive/` (hors chemin actif, conservés pour l'historique).
+- **Le repo mobile `app-drivers-fleet-boyahgroup` ne porte plus de migrations DB** :
+  ses Phase 2/3 sont dans son propre `_archive/`, ses objets `app_*` sont DANS la
+  baseline. Il ne garde que ses Edge Functions (`auth-chauffeur`, `acci-sso-ticket`).
+- `supabase/_pending/` = migrations rédigées mais **NON déployées** (ex. Phase 5
+  « Signaler ») — hors chemin actif, jamais embarquées par `db push`.
+- **Ne JAMAIS `supabase db push` la baseline sur la prod Fleet** (elle décrit un état
+  déjà présent). Toute nouvelle migration = nouveau fichier daté **après** la baseline.
 
 ## Schéma BD essentiel
 
