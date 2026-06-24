@@ -118,6 +118,7 @@ export default function EditVehicule() {
     montant_mensuel_client:    "",
     id_client:                 "",
     montant_recette_jour:      "",
+    date_debut_suivi:          "",
   })
   const [clients, setClients] = useState<{ id: number; nom: string }[]>([])
   const set = (k: keyof typeof form, v: string | boolean) => setForm(p => ({ ...p, [k]: v }))
@@ -166,6 +167,7 @@ export default function EditVehicule() {
           montant_mensuel_client:    data.montant_mensuel_client?.toString() ?? "",
           id_client:                 data.id_client?.toString()     ?? "",
           montant_recette_jour:      data.montant_recette_jour?.toString() ?? "",
+          date_debut_suivi:          data.date_debut_suivi          ?? "",
         })
         setPhotoUrl(data.photo ?? null);              setPhotoPreview(data.photo ?? null)
         setRectoUrl(data.carte_grise_recto ?? null);  setRectoPreview(data.carte_grise_recto ?? null)
@@ -221,6 +223,7 @@ export default function EditVehicule() {
           montant_mensuel_client:    form.sous_gestion && form.montant_mensuel_client !== "" ? Number(form.montant_mensuel_client) : 0,
           id_client:                 form.sous_gestion && form.id_client !== "" ? Number(form.id_client) : null,
           montant_recette_jour:      form.montant_recette_jour !== "" ? Number(form.montant_recette_jour) : 0,
+          date_debut_suivi:          form.date_debut_suivi || null,
           photo:                     finalPhoto,
           carte_grise_recto:         finalRecto,
           carte_grise_verso:         finalVerso,
@@ -367,6 +370,10 @@ export default function EditVehicule() {
           <Field label="Recette jour (FCFA)" hint="Utilisée pour détecter les manquants et insuffisants dans le suivi">
             <input type="number" min="0" value={form.montant_recette_jour} onChange={e => set("montant_recette_jour", e.target.value)}
               placeholder="Ex. 22000" className={inp} />
+          </Field>
+          <Field label="Début du suivi des recettes"
+            hint="Par défaut la date d'entrée. À repousser si le véhicule n'est pas encore en service (au garage) — aucune recette attendue avant cette date.">
+            <input type="date" value={form.date_debut_suivi} onChange={e => set("date_debut_suivi", e.target.value)} className={inp} />
           </Field>
         </div>
       </div>

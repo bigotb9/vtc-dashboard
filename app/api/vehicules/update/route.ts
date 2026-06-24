@@ -13,6 +13,7 @@ const ALLOWED_FIELDS = new Set<string>([
   "montant_mensuel_client", "id_client", "date_carte_stationnement",
   "date_expiration_carte_stationnement", "date_patente",
   "date_expiration_patente", "montant_recette_jour", "valeur_acquisition_client",
+  "date_debut_suivi",
 ])
 
 export async function PATCH(req: NextRequest) {

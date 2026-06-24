@@ -20,6 +20,7 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js"
+import { avantDebutSuivi } from "@/lib/completude/dateDebutSuivi"
 
 const TOLERANCE = 0.99
 
@@ -65,6 +66,7 @@ export type CompletudeVehicule = {
   immatriculation:       string
   montant_recette_jour:  number | null
   statut:                string | null
+  date_debut_suivi:      string | null   // borne du suivi (YYYY-MM-DD), null = pas encore suivi
 }
 
 export type CompletudeResult = {
@@ -100,7 +102,7 @@ export async function getCompletude(
   // 1. Véhicules actifs
   const { data: vehiculesActifs } = await supabase
     .from("vehicules")
-    .select("id_vehicule, immatriculation, montant_recette_jour, statut")
+    .select("id_vehicule, immatriculation, montant_recette_jour, statut, date_debut_suivi")
     .eq("statut", "ACTIF")
     .order("immatriculation")
 
@@ -153,19 +155,9 @@ export async function getCompletude(
     if (tel) chauffeurParTel.set(tel, c.nom)
   }
 
-  // 3bis. Date du 1er versement par véhicule
-  const premierMap = new Map<number, string>()
-  for (const v of vehicules) {
-    const { data } = await supabase
-      .from("versement_attribution")
-      .select("jour_exploitation")
-      .eq("id_vehicule", v.id_vehicule)
-      .order("jour_exploitation", { ascending: true })
-      .limit(1)
-    if (data && data.length > 0) {
-      premierMap.set(v.id_vehicule, data[0].jour_exploitation)
-    }
-  }
+  // 3bis. Borne de début du suivi : vehicules.date_debut_suivi (chargée au
+  // §1). Remplace l'ancienne borne "1ère attribution" (premierMap) qui ratait
+  // les véhicules sans aucune attribution. Cf. lib/completude/dateDebutSuivi.ts.
 
   // 4. Justifications dans la plage
   const { data: justifs } = await supabase.from("justifications_versement")
@@ -226,14 +218,12 @@ export async function getCompletude(
       const montant_recu    = attribution?.montant || 0
       const nb_tx           = attribution?.count || 0
 
-      const premierVersement = premierMap.get(v.id_vehicule)
-
       let statut: CaseStatut
       if (dateStr > today) {
         statut = "futur"
       } else if (dow === 0) {
         statut = "non_ouvre"
-      } else if (premierVersement && dateStr < premierVersement) {
+      } else if (avantDebutSuivi(dateStr, v.date_debut_suivi)) {
         statut = "pre_service"
       } else if (ferie && !attribution) {
         statut = "jour_ferie_auto"

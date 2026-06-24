@@ -3,6 +3,7 @@ import Anthropic from "@anthropic-ai/sdk"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import { getMargeConsolidee, TAUX_COMMISSION_YANGO } from "@/lib/finance/margeConsolidee"
 import { getLedgerLoyersByClient } from "@/lib/finance/getArriereLoyers"
+import { avantDebutSuivi } from "@/lib/completude/dateDebutSuivi"
 
 export const maxDuration = 60 // Vercel max pour plan Pro (évite les timeouts Claude Opus)
 
@@ -541,7 +542,7 @@ async function fetchContext(intent: IntentType) {
     const month30ago = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)
 
     const [{ data: vehiculesActifs }, attribs, { data: justifs }, { data: feries }] = await Promise.all([
-      sb.from("vehicules").select("id_vehicule, immatriculation, montant_recette_jour").eq("statut", "ACTIF"),
+      sb.from("vehicules").select("id_vehicule, immatriculation, montant_recette_jour, date_debut_suivi").eq("statut", "ACTIF"),
       fetchAllPaginated<{ id_vehicule: number; jour_exploitation: string; montant_attribue: number; type_attribution: string }>(
         () => sb.from("versement_attribution")
           .select("id_vehicule, jour_exploitation, montant_attribue, type_attribution")
@@ -571,17 +572,9 @@ async function fetchContext(intent: IntentType) {
       allJours.push(d.toISOString().slice(0, 10))
     }
 
-    // Date du 1er versement par véhicule (= date d'entrée dans la flotte active)
-    const premierVersement = new Map<number, string>()
-    for (const v of vehiculesActifs || []) {
-      const { data } = await sb
-        .from("versement_attribution")
-        .select("jour_exploitation")
-        .eq("id_vehicule", v.id_vehicule)
-        .order("jour_exploitation", { ascending: true })
-        .limit(1)
-      if (data && data.length > 0) premierVersement.set(v.id_vehicule, data[0].jour_exploitation)
-    }
+    // Borne de début du suivi = vehicules.date_debut_suivi (chargée au select
+    // ci-dessus). Même règle que la grille /recettes/suivi via avantDebutSuivi.
+    // Remplace l'ancienne borne "1ère attribution" (impayés fantômes).
 
     const manquants_non_justifies: { immat: string; jour: string; attendu: number }[] = []
     const insuffisants_non_justifies: { immat: string; jour: string; recu: number; attendu: number }[] = []
@@ -590,10 +583,9 @@ async function fetchContext(intent: IntentType) {
 
     for (const v of vehiculesActifs || []) {
       const expected = v.montant_recette_jour || 0
-      const premier  = premierVersement.get(v.id_vehicule)
       for (const j of allJours) {
-        // Ignorer les jours avant l'entrée du véhicule dans la flotte
-        if (premier && j < premier) continue
+        // Ignorer les jours avant le début du suivi (fail-safe : pas de date → tout ignoré)
+        if (avantDebutSuivi(j, v.date_debut_suivi)) continue
 
         total_ouvres++
         const recu       = attribMap.get(`${v.id_vehicule}|${j}`) || 0
